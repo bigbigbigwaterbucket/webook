@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webook
+spec:
+  replicas: 3
+  # pod选择器，用来匹配哪些pod属于这个部署
+  selector:
+    matchLabels:
+      app: webook
+    # template(模板)描述pod是什么样的
+  template:
+    metadata:
+      labels:
+        app: webook
+    spec:
+      containers:
+        - name: webook
+          image: waterbucket/webook:v0.0.1
+          ports:
+            - containerPort: 8080  # 声明下端口，要与web服务代码的实际端口对的上
