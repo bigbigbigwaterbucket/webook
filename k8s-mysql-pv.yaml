@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-local-pv
+spec:
+  storageClassName: mysql-storage1
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    # 主机存储位置，即最终映射到本机的哪个位置
+    path: "/mnt/live"
+
+  

@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: webook
 spec:
-  replicas: 3
+  replicas: 2
   # pod选择器，用来匹配哪些pod属于这个部署
   selector:
     matchLabels:

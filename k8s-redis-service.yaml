@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webook-redis
+spec:
+  selector:
+    app: webook-redis
+  ports:
+    - protocol: TCP
+      # service外部端口
+      port: 6380
+      # 内部Pod中redis服务的端口，应当为默认启动端口
+      targetPort: 6379
+      # 相当于再套一层外部端口
+      nodePort: 30003
+  type: NodePort
+  

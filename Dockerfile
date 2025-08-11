@@ -1,3 +1,4 @@
+# docker bulid文件，构建docker镜像，这样就可以放在pod里执行
 # 基础镜像
 FROM ubuntu:20.04
 # 打包编译文件放到工作目录

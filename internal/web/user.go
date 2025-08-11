@@ -39,7 +39,7 @@ func (this *UserHandler) RegisterRouter(engine *gin.Engine) {
 	ug := engine.Group("/users")
 	ug.POST("/signup", this.SignUp)
 	ug.POST("/login", this.LoginJWT)
-	ug.POST("/edit", this.Edit)
+	ug.POST("/edit", this.EditJWT)
 	ug.GET("/profile", this.ProfileJWT)
 }
 
@@ -300,6 +300,55 @@ func (this *UserHandler) Edit(ctx *gin.Context) {
 	}
 	//这里从session中找到userId,后续存储数据时就可以找到是哪个用户
 	err = this.svc.Edit(ctx, domain.User{Id: userId, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce})
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	ctx.String(http.StatusOK, "用户信息更改成功！")
+	return
+}
+
+func (this *UserHandler) EditJWT(ctx *gin.Context) {
+	type EditReq struct {
+		Name      string `json:"name"` //必须是大写，保证json格式数据转结构体时能够赋值，但是tag的json键不是大小写敏感的
+		Birthday  string `json:"birthday"`
+		Introduce string `json:"introduce"`
+	}
+	//go语言的处理错误的方式已经深刻融入至编程中，正常每写一个函数都要try catch，在go里。由于没有try catch，返回的就是error或nil类型，强制你去处理
+	var req EditReq
+	err := ctx.Bind(&req)
+	if err != nil {
+		return
+	}
+	//处理输入的信息是否合法
+	if len(req.Name) > 20 || len(req.Name) == 0 {
+		ctx.String(http.StatusOK, "用户名过长或为空")
+		return
+	}
+	ok, err := this.BirthdayRegexp.MatchString(req.Birthday)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	if !ok {
+		ctx.String(http.StatusOK, "生日日期不符合格式")
+		return
+	}
+	if len(req.Introduce) > 50 {
+		ctx.String(http.StatusOK, "个人简介过长")
+		return
+	}
+
+	userId, ok := ctx.Get("userId")
+	if !ok {
+		ctx.String(http.StatusUnauthorized, "尚未登录")
+	}
+	userReal, ok := userId.(int64)
+	if !ok {
+		ctx.String(http.StatusUnauthorized, "尚未登录")
+	}
+	//这里从session中找到userId,后续存储数据时就可以找到是哪个用户
+	err = this.svc.Edit(ctx, domain.User{Id: userReal, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce})
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return

@@ -4,6 +4,6 @@
 .PHONY: docker
 docker:
 	@rm webook || true
-	@$env:GOOS="linux"; $env:GOARCH="amd64"; go build -o webook .
+	@$env:GOOS="linux"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"; go build -buildvcs=false -tags=k8s -o webook .
 	@docker rmi -f waterbucket/webook:v0.0.1
 	@docker build -t waterbucket/webook:v0.0.1 .

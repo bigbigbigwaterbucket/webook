@@ -8,6 +8,7 @@ import (
 	redisv9 "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"learning_go/webook/internal/config"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
@@ -18,10 +19,10 @@ import (
 	"time"
 )
 
-func main2() {
+func main() {
 
 	//u := web.UserHandler{svc: &service.UserService{}}  私有变量没法初始化的，邓明用New方法初始化
-	db, err := gorm.Open(mysql.Open("root:root@tcp(localhost:13316)/webook"))
+	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
 	if err != nil {
 		//只在初始化过程panic，最小化资源损失
 		panic(err) //panic：goroutine直接结束
@@ -47,7 +48,7 @@ func main2() {
 		println("这是第二个 middleware")
 	})
 	reidsClient := redisv9.NewClient(&redisv9.Options{
-		Addr: "localhost:6379"})
+		Addr: config.Config.RedisURL})
 
 	//限流为一分钟100次
 	server.Use(ratelimit.NewBuilder(reidsClient, time.Second, 100).Build())
@@ -76,7 +77,7 @@ func main2() {
 
 	//第一个参数：最大空闲连接数，面试时问到压力/性能测试确定，第二个参数连接方式tcp，不太可能用udp  第六第七表示身份认证和数据加密
 	//数据加密密钥的长度是有限制的，比如要是6字节/16字节
-	store, err := redis.NewStore(16, "tcp", "localhost:6379",
+	store, err := redis.NewStore(16, "tcp", config.Config.RedisURL,
 		"", "", []byte("1234567890abcdef1234567890abcdef"), []byte("1234567890abcdef1234567890abcdef"))
 	if err != nil {
 		panic(err)
