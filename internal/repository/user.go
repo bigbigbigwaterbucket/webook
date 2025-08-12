@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"learning_go/webook/internal/domain"
+	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
 )
 
@@ -12,7 +13,8 @@ var (
 )
 
 type UserRepository struct {
-	Dao *dao.UserDAO
+	Dao   *dao.UserDAO
+	Cache *cache.UserCache
 }
 
 func (this *UserRepository) FindByEmail(ctx context.Context, u domain.User) (domain.User, error) {
@@ -34,9 +36,29 @@ func (this *UserRepository) Update(ctx context.Context, u domain.User) error {
 
 func (this *UserRepository) FindById(ctx context.Context, userId int64) (domain.User, error) {
 	//先从cache里找，找不到去数据库DAO里找，找到了写回cache
-	user, err := this.Dao.FindById(ctx, userId)
+	user, err := this.Cache.Get(ctx, userId)
+	if err == nil {
+		return user, nil
+	}
+	//考虑如果redis崩了导致错误，要不要从数据库加载user？
+	//面试时考虑：加载，万一redis崩了，对数据库进行限流保护
+	//实践就简单点：就直接不加载，return 错误
+
+	//下列实现是无论redis崩没崩，找不到就去数据库
+	ue, err := this.Dao.FindById(ctx, userId)
 	if err != nil {
+		//数据库崩了
 		return domain.User{}, err
 	}
-	return domain.User{Email: user.Email, Id: userId, Name: user.Name, Introduce: user.Introduce, Birthday: user.Birthday}, err
+	u := domain.User{Id: ue.Id, Email: ue.Email, Name: ue.Name, Introduce: ue.Introduce, Birthday: ue.Birthday}
+
+	//开goroutine协程，会出现缓存一致性问题，但是只要用到了缓存，就不指望强数据一致性？？？
+	go func() {
+		err = this.Cache.Set(ctx, u)
+		if err != nil {
+			//几乎可以确定是redis或者到redis的网络崩了，要日志
+			//return
+		}
+	}()
+	return u, err
 }
