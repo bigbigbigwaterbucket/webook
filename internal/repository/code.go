@@ -6,10 +6,10 @@ import (
 )
 
 type CodeRepository struct {
-	codeCache cache.CodeCache
+	codeCache *cache.CodeCache
 }
 
-func NewCodeRepository(cc cache.CodeCache) *CodeRepository {
+func NewCodeRepository(cc *cache.CodeCache) *CodeRepository {
 	return &CodeRepository{codeCache: cc}
 }
 

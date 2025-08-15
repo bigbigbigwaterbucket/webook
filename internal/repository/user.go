@@ -2,14 +2,16 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
+	"time"
 )
 
 var (
-	ErrUserDuplicateEmail = dao.ErrUserDuplicateEmail
-	ErrUserNotFound       = dao.ErrUserNotFound
+	ErrUserDuplicate = dao.ErrUserDuplicate
+	ErrUserNotFound  = dao.ErrUserNotFound
 )
 
 type UserRepository struct {
@@ -17,17 +19,29 @@ type UserRepository struct {
 	Cache *cache.UserCache
 }
 
+func NewUserRepository(dao *dao.UserDAO, cache *cache.UserCache) *UserRepository {
+	return &UserRepository{Dao: dao, Cache: cache}
+}
+
 func (this *UserRepository) FindByEmail(ctx context.Context, u domain.User) (domain.User, error) {
 	user, err := this.Dao.FindByEmail(ctx, u.Email)
 	if err != nil {
 		return domain.User{}, err
 	}
-	return domain.User{Id: user.Id, Email: user.Email, Password: user.Password}, err
+	return this.entityToDomain(user), err
+}
+
+func (this *UserRepository) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
+	user, err := this.Dao.FindByPhone(ctx, phone)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return this.entityToDomain(user), err
 }
 
 // 这里也要传web服务的context？
 func (this *UserRepository) Create(ctx context.Context, u domain.User) error {
-	return this.Dao.Insert(ctx, dao.User{Email: u.Email, Password: u.Password})
+	return this.Dao.Insert(ctx, this.domainToEntity(u))
 }
 
 func (this *UserRepository) Update(ctx context.Context, u domain.User) error {
@@ -50,7 +64,7 @@ func (this *UserRepository) FindById(ctx context.Context, userId int64) (domain.
 		//数据库崩了
 		return domain.User{}, err
 	}
-	u := domain.User{Id: ue.Id, Email: ue.Email, Name: ue.Name, Introduce: ue.Introduce, Birthday: ue.Birthday}
+	u := this.entityToDomain(ue)
 
 	//开goroutine协程，会出现缓存一致性问题，但是只要用到了缓存，就不指望强数据一致性？？？
 	go func() {
@@ -61,4 +75,12 @@ func (this *UserRepository) FindById(ctx context.Context, userId int64) (domain.
 		}
 	}()
 	return u, err
+}
+
+func (ur *UserRepository) domainToEntity(u domain.User) dao.User {
+	return dao.User{Id: u.Id, Email: sql.NullString{String: u.Email, Valid: u.Email != ""}, Phone: sql.NullString{String: u.Phone, Valid: u.Phone != ""}, Password: u.Password, Ctime: u.Ctime.UnixMilli()}
+}
+
+func (ur *UserRepository) entityToDomain(u dao.User) domain.User {
+	return domain.User{Id: u.Id, Email: u.Email.String, Password: u.Password, Ctime: time.UnixMilli(u.Ctime), Phone: u.Phone.String}
 }

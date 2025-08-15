@@ -11,13 +11,17 @@ import (
 // 每一层都有自己的邮箱冲突err，这样在测试时可以方便知道是哪一层出的错
 // 也可以用全局的，但是不方便知道是哪一层出错，另外，这样传上层不知道底层用的是gorm的错误
 var (
-	ErrUserDuplicateEmail = repository.ErrUserDuplicateEmail
+	ErrUserDuplicate = repository.ErrUserDuplicate
 	//四层模型中 err在哪产生，就在哪定义
 	ErrInvalidUserOrPassword = errors.New("账号/邮箱或密码不对")
 )
 
 type UserService struct {
 	Repo *repository.UserRepository
+}
+
+func NewUserService(repo *repository.UserRepository) *UserService {
+	return &UserService{Repo: repo}
 }
 
 func (this *UserService) Login(ctx context.Context, user domain.User) (domain.User, error) {
@@ -58,4 +62,20 @@ func (this *UserService) Profile(ctx context.Context, userId int64) (domain.User
 		return domain.User{}, err
 	}
 	return user, err
+}
+
+func (this *UserService) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
+	user, err := this.Repo.FindByPhone(ctx, phone)
+	if err != repository.ErrUserNotFound {
+		//找到了或者其他错误都进入此分支
+		return user, err
+	}
+	//没找到，说明没有这个用户
+	err = this.Repo.Create(ctx, domain.User{Phone: phone})
+	if err != nil {
+		return domain.User{Phone: phone}, err
+	}
+	//坑，会遇到主从延迟问题，创建操作慢于查找操作？（（（（
+	//这里再查一遍是因为创建的时候，uid没有一并返回
+	return this.Repo.FindByPhone(ctx, phone)
 }

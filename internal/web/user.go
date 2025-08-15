@@ -7,27 +7,34 @@ import (
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"learning_go/webook/internal/domain"
+	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/service"
 	"net/http"
 	"time"
 	//"regexp"
 )
 
+const biz = "login"
+
+// 通过接口，让编译器去检查UserHandler，确保其实现了注册路由的方法
+var _ handler = (*UserHandler)(nil)
+
 // UserHandler 定义跟用户有关的路由
 type UserHandler struct {
 	svc            *service.UserService
+	codeSvc        *service.CodeService
 	EmailRegexp    *regexp.Regexp
 	PasswordRegexp *regexp.Regexp
 	BirthdayRegexp *regexp.Regexp
 }
 
-func NewUserHandler(svc *service.UserService) (uh *UserHandler) {
+func NewUserHandler(svc *service.UserService, codeSvc *service.CodeService) (uh *UserHandler) {
 	const (
 		emailString    = "^[A-Za-z0-9\\u4e00-\\u9fa5]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$"
 		passwordString = ""
 		birthdayString = `^\d{4}-(1[0-2]|0?[1-9])-(3[01]|[12][0-9]|0?[1-9])$`
 	)
-	return &UserHandler{svc: svc,
+	return &UserHandler{svc: svc, codeSvc: codeSvc,
 		EmailRegexp:    regexp.MustCompile(emailString, 0),
 		PasswordRegexp: regexp.MustCompile(passwordString, 0),
 		BirthdayRegexp: regexp.MustCompile(birthdayString, 0),
@@ -41,6 +48,69 @@ func (this *UserHandler) RegisterRouter(engine *gin.Engine) {
 	ug.POST("/login", this.LoginJWT)
 	ug.POST("/edit", this.EditJWT)
 	ug.GET("/profile", this.ProfileJWT)
+	ug.POST("/login_sms/code/send", this.SendSmsCode)
+	ug.POST("/login_sms", this.LoginSmsCode)
+}
+
+func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+		Code  string `json:"code"`
+	}
+	var req Req
+	err := ctx.Bind(&req)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{Msg: "手机号与验证码接收失败"})
+		return
+	}
+	err = this.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
+	if err != nil {
+		if err == cache.ErrorCodeNotRight {
+			ctx.JSON(http.StatusOK, Result{Msg: "验证码错误!"})
+			return
+		}
+		if err == cache.ErrorCodeVerifyTooManyTimes {
+			ctx.JSON(http.StatusOK, Result{Msg: "验证次数过多"})
+			return
+		}
+		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+		return
+	}
+	user, err := this.svc.FindOrCreate(ctx, req.Phone)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+		return
+	}
+	err = this.SetJWT(ctx, user.Id)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{Msg: "登陆成功"})
+
+}
+
+func (this *UserHandler) SendSmsCode(ctx *gin.Context) {
+	type SmsReq struct {
+		Phone string `json:"phone"`
+	}
+	//var 给一切变量本身分配内存，但如果变量是引用类型（指针、slice、map、chan），它只会初始化为零值（nil），不会自动为其引用的底层数据结构分配内存，需要 new 或 make 来分配。
+	var req SmsReq // 值类型变量，已经在栈上分配好内存
+	err := ctx.Bind(&req)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	err = this.codeSvc.Send(ctx, biz, req.Phone)
+	if err != nil {
+		if err == cache.ErrorCodeSendTooMany {
+			ctx.JSON(http.StatusOK, Result{Msg: "验证码发送太频繁"})
+			return
+		}
+		ctx.JSON(http.StatusOK, Result{Msg: "验证码发送失败"})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{Msg: "发送成功"})
 }
 
 func (this *UserHandler) SignUp(ctx *gin.Context) {
@@ -84,7 +154,7 @@ func (this *UserHandler) SignUp(ctx *gin.Context) {
 
 	if err != nil {
 		//这个eer其实包含了提示字符串。。。
-		if err == service.ErrUserDuplicateEmail {
+		if err == service.ErrUserDuplicate {
 			ctx.String(200, "邮箱冲突")
 		} else {
 			ctx.String(http.StatusOK, "系统错误")
@@ -114,21 +184,30 @@ func (this *UserHandler) LoginJWT(ctx *gin.Context) {
 		}
 	}
 
+	err = this.SetJWT(ctx, user.Id)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	ctx.String(http.StatusOK, "登录成功")
+	return
+}
+
+func (this *UserHandler) SetJWT(ctx *gin.Context, uid int64) error {
 	//60秒后过期，jwt的valid将变为false
 	claims := UserClaims{RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
-		Uid:       user.Id,
+		Uid:       uid,
 		UserAgent: ctx.Request.UserAgent()}
 	//生成带自定义信息的token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 	tokenStr, err := token.SignedString([]byte("1234567890abcdef1234567890abcdef"))
 	if err != nil {
-		ctx.String(http.StatusInternalServerError, "系统错误")
+		return err
 	}
 	ctx.Header("x-jwt-token", tokenStr)
 	fmt.Printf(tokenStr)
-	fmt.Printf("%v", user)
-	ctx.String(http.StatusOK, "登录成功")
-	return
+	fmt.Printf("%v", uid)
+	return nil
 }
 
 type UserClaims struct {

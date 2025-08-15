@@ -12,14 +12,22 @@ import (
 )
 
 type LoginJWTMiddlewareBuilder struct {
+	HPath []string
+}
+
+func (this *LoginJWTMiddlewareBuilder) AddHPath(path string) *LoginJWTMiddlewareBuilder {
+	this.HPath = append(this.HPath, path)
+	return this
 }
 
 // 在除了登录和注册页面，验证登陆状态
 func (this *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
 	gob.Register(time.Now()) //注册编解码
 	return func(context *gin.Context) {
-		if context.Request.URL.Path == "/users/login" || context.Request.URL.Path == "/users/signup" {
-			return
+		for idx := range this.HPath {
+			if context.Request.URL.Path == this.HPath[idx] {
+				return
+			}
 		}
 		token := context.GetHeader("Authorization")
 		if token == "" {

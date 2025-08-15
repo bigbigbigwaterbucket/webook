@@ -13,6 +13,6 @@ elseif inputCode==val then
     return 0
 else
     -- 验证码不对
-    redis.call("decr",cntKey,-1)
+    redis.call("decr",cntKey)
     return -2
 end

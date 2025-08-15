@@ -10,8 +10,10 @@ import (
 	"gorm.io/gorm"
 	"learning_go/webook/internal/config"
 	"learning_go/webook/internal/repository"
+	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
+	"learning_go/webook/internal/service/sms/memoryTest"
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/middleware"
 	"learning_go/webook/pkg/ginx/middleware/ratelimit"
@@ -23,6 +25,9 @@ func main() {
 
 	//u := web.UserHandler{svc: &service.UserService{}}  私有变量没法初始化的，邓明用New方法初始化
 	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
+	redisClient := redisv9.NewClient(&redisv9.Options{
+		Addr: config.Config.RedisURL})
+
 	if err != nil {
 		//只在初始化过程panic，最小化资源损失
 		panic(err) //panic：goroutine直接结束
@@ -31,10 +36,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ud := dao.UserDAO{DB: db}
-	ur := repository.UserRepository{Dao: &ud}
-	us := service.UserService{Repo: &ur}
-	uh := web.NewUserHandler(&us)
+	userDAO := dao.NewUserDAO(db)
+	userCache := cache.NewUserCache(redisClient)
+	userRepository := repository.NewUserRepository(userDAO, userCache)
+	userService := service.NewUserService(userRepository)
+	smsSvc := memoryTest.NewMemService()
+	codeCache := cache.NewCodeCache(redisClient)
+	codeRepository := repository.NewCodeRepository(codeCache)
+	codeService := service.NewCodeService(smsSvc, codeRepository)
+	uh := web.NewUserHandler(userService, codeService)
 
 	server := gin.Default()
 
@@ -47,11 +57,9 @@ func main() {
 	server.Use(func(ctx *gin.Context) {
 		println("这是第二个 middleware")
 	})
-	reidsClient := redisv9.NewClient(&redisv9.Options{
-		Addr: config.Config.RedisURL})
 
 	//限流为一分钟100次
-	server.Use(ratelimit.NewBuilder(reidsClient, time.Second, 100).Build())
+	server.Use(ratelimit.NewBuilder(redisClient, time.Second, 100).Build())
 	//只会对cors 跨域请求进行限制，postman不会限制？  这里配置的内容就是preflight响应体返回的内容
 	server.Use(cors.New(cors.Config{
 		//允许的域名最好不要默认所有域名，看前端服务部署在哪个域名端口上
@@ -88,9 +96,9 @@ func main() {
 	//builder := middleware.LoginMiddlewareBuilder{}
 	//server.Use(builder.Build())
 	builderJWT := middleware.LoginJWTMiddlewareBuilder{}
-	server.Use(builderJWT.Build())
+	server.Use(builderJWT.AddHPath("/users/login").AddHPath("/users/signup").AddHPath("/users/login_sms/code/send").AddHPath("/users/login_sms").Build())
 
 	uh.RegisterRouter(server)
 
-	server.Run(":8080")
+	err = server.Run(":8080")
 }

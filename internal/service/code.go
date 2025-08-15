@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 	"learning_go/webook/internal/repository"
-	"learning_go/webook/internal/service/sms/tencent"
+	"learning_go/webook/internal/service/sms"
 	"math/rand/v2"
 )
 
 const codeTplId = "1877556"
 
 type CodeService struct {
-	svc  tencent.Service
-	repo repository.CodeRepository
+	svc  sms.Service //面向接口，依赖注入
+	repo *repository.CodeRepository
+}
+
+func NewCodeService(svc sms.Service, repo *repository.CodeRepository) *CodeService {
+	return &CodeService{svc: svc, repo: repo}
 }
 
 // biz用来区分业务，例如修改密码的验证码和登录的验证码要区别
@@ -42,6 +46,6 @@ func (cs *CodeService) Verify(ctx context.Context, biz string, phone string, inp
 }
 
 func (cs *CodeService) generateCode() string {
-	num := rand.IntN(1000000)      //6位数，最大999999
-	return fmt.Sprintf("%6d", num) //加上前导0
+	num := rand.IntN(1000000)       //6位数，最大999999
+	return fmt.Sprintf("%06d", num) //加上前导0
 }
