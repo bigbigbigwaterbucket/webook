@@ -5,15 +5,15 @@ import (
 	"fmt"
 )
 
-type Service struct {
+type MemService struct {
 }
 
-func NewMemService() *Service {
-	return &Service{}
+func NewMemService() *MemService {
+	return &MemService{}
 }
 
 // 模拟发短信过程，测试用
-func (s *Service) Send(ctx context.Context, tpl string, args []string, number ...string) error {
+func (s *MemService) Send(ctx context.Context, tpl string, args []string, number ...string) error {
 	fmt.Println(args)
 	return nil
 }

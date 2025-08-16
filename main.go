@@ -23,7 +23,7 @@ import (
 
 func main() {
 
-	//u := web.UserHandler{svc: &service.UserService{}}  私有变量没法初始化的，邓明用New方法初始化
+	//u := web.UserHandler{svc: &service.UserServiceI{}}  私有变量没法初始化的，邓明用New方法初始化
 	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
 	redisClient := redisv9.NewClient(&redisv9.Options{
 		Addr: config.Config.RedisURL})
@@ -44,7 +44,7 @@ func main() {
 	codeCache := cache.NewCodeCache(redisClient)
 	codeRepository := repository.NewCodeRepository(codeCache)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
-	uh := web.NewUserHandler(userService, codeService)
+	userHandler := web.NewUserHandler(userService, codeService)
 
 	server := gin.Default()
 
@@ -98,7 +98,7 @@ func main() {
 	builderJWT := middleware.LoginJWTMiddlewareBuilder{}
 	server.Use(builderJWT.AddHPath("/users/login").AddHPath("/users/signup").AddHPath("/users/login_sms/code/send").AddHPath("/users/login_sms").Build())
 
-	uh.RegisterRouter(server)
+	userHandler.RegisterRouter(server)
 
 	err = server.Run(":8080")
 }

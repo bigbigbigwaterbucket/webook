@@ -16,15 +16,23 @@ var (
 	ErrInvalidUserOrPassword = errors.New("账号/邮箱或密码不对")
 )
 
-type UserService struct {
-	Repo *repository.UserRepository
+type UserServiceI struct {
+	Repo repository.UserRepository
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{Repo: repo}
+type UserService interface {
+	Login(ctx context.Context, user domain.User) (domain.User, error)
+	SignUp(ctx context.Context, user domain.User) error
+	Edit(ctx context.Context, user domain.User) error
+	Profile(ctx context.Context, userId int64) (domain.User, error)
+	FindOrCreate(ctx context.Context, phone string) (domain.User, error)
 }
 
-func (this *UserService) Login(ctx context.Context, user domain.User) (domain.User, error) {
+func NewUserService(repo repository.UserRepository) *UserServiceI {
+	return &UserServiceI{Repo: repo}
+}
+
+func (this *UserServiceI) Login(ctx context.Context, user domain.User) (domain.User, error) {
 	u, err := this.Repo.FindByEmail(ctx, user)
 	// 数据库没找到相应数据的错误，转换为账号/邮箱或密码不对的错误
 	if err == repository.ErrUserNotFound {
@@ -42,7 +50,7 @@ func (this *UserService) Login(ctx context.Context, user domain.User) (domain.Us
 	return u, err
 }
 
-func (this *UserService) SignUp(ctx context.Context, user domain.User) error {
+func (this *UserServiceI) SignUp(ctx context.Context, user domain.User) error {
 	//考虑加密放在哪里
 	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -52,11 +60,11 @@ func (this *UserService) SignUp(ctx context.Context, user domain.User) error {
 	return this.Repo.Create(ctx, user)
 }
 
-func (this *UserService) Edit(ctx context.Context, user domain.User) error {
+func (this *UserServiceI) Edit(ctx context.Context, user domain.User) error {
 	return this.Repo.Update(ctx, user)
 }
 
-func (this *UserService) Profile(ctx context.Context, userId int64) (domain.User, error) {
+func (this *UserServiceI) Profile(ctx context.Context, userId int64) (domain.User, error) {
 	user, err := this.Repo.FindById(ctx, userId)
 	if err != nil {
 		return domain.User{}, err
@@ -64,7 +72,7 @@ func (this *UserService) Profile(ctx context.Context, userId int64) (domain.User
 	return user, err
 }
 
-func (this *UserService) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
+func (this *UserServiceI) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
 	user, err := this.Repo.FindByPhone(ctx, phone)
 	if err != repository.ErrUserNotFound {
 		//找到了或者其他错误都进入此分支

@@ -14,16 +14,24 @@ var (
 	ErrUserNotFound  = dao.ErrUserNotFound
 )
 
-type UserRepository struct {
-	Dao   *dao.UserDAO
-	Cache *cache.UserCache
+type UserRepositoryI struct {
+	Dao   dao.UserDAO
+	Cache cache.UserCache
 }
 
-func NewUserRepository(dao *dao.UserDAO, cache *cache.UserCache) *UserRepository {
-	return &UserRepository{Dao: dao, Cache: cache}
+type UserRepository interface {
+	FindByEmail(ctx context.Context, u domain.User) (domain.User, error)
+	FindByPhone(ctx context.Context, phone string) (domain.User, error)
+	FindById(ctx context.Context, userId int64) (domain.User, error)
+	Create(ctx context.Context, u domain.User) error
+	Update(ctx context.Context, u domain.User) error
 }
 
-func (this *UserRepository) FindByEmail(ctx context.Context, u domain.User) (domain.User, error) {
+func NewUserRepository(dao dao.UserDAO, cache cache.UserCache) *UserRepositoryI {
+	return &UserRepositoryI{Dao: dao, Cache: cache}
+}
+
+func (this *UserRepositoryI) FindByEmail(ctx context.Context, u domain.User) (domain.User, error) {
 	user, err := this.Dao.FindByEmail(ctx, u.Email)
 	if err != nil {
 		return domain.User{}, err
@@ -31,7 +39,7 @@ func (this *UserRepository) FindByEmail(ctx context.Context, u domain.User) (dom
 	return this.entityToDomain(user), err
 }
 
-func (this *UserRepository) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
+func (this *UserRepositoryI) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
 	user, err := this.Dao.FindByPhone(ctx, phone)
 	if err != nil {
 		return domain.User{}, err
@@ -39,17 +47,10 @@ func (this *UserRepository) FindByPhone(ctx context.Context, phone string) (doma
 	return this.entityToDomain(user), err
 }
 
-// 这里也要传web服务的context？
-func (this *UserRepository) Create(ctx context.Context, u domain.User) error {
-	return this.Dao.Insert(ctx, this.domainToEntity(u))
-}
-
-func (this *UserRepository) Update(ctx context.Context, u domain.User) error {
-	return this.Dao.Update(ctx, dao.User{Id: u.Id, Name: u.Name, Birthday: u.Birthday, Introduce: u.Introduce})
-}
-
-func (this *UserRepository) FindById(ctx context.Context, userId int64) (domain.User, error) {
+func (this *UserRepositoryI) FindById(ctx context.Context, userId int64) (domain.User, error) {
 	//先从cache里找，找不到去数据库DAO里找，找到了写回cache
+	//这里有bug，如果前面先查看profile，再edit信息，那么这里edit虽然存到数据库里，但是redis中的用户数据没改
+	//TODO:解决上述bug关键在于update时一并修改redis中的用户信息
 	user, err := this.Cache.Get(ctx, userId)
 	if err == nil {
 		return user, nil
@@ -77,10 +78,23 @@ func (this *UserRepository) FindById(ctx context.Context, userId int64) (domain.
 	return u, err
 }
 
-func (ur *UserRepository) domainToEntity(u domain.User) dao.User {
+// 这里也要传web服务的context？
+func (this *UserRepositoryI) Create(ctx context.Context, u domain.User) error {
+	return this.Dao.Insert(ctx, this.domainToEntity(u))
+}
+
+func (this *UserRepositoryI) Update(ctx context.Context, u domain.User) error {
+	err := this.Cache.Set(ctx, u)
+	if err != nil {
+		return err
+	}
+	return this.Dao.Update(ctx, dao.User{Id: u.Id, Name: u.Name, Birthday: u.Birthday, Introduce: u.Introduce})
+}
+
+func (ur *UserRepositoryI) domainToEntity(u domain.User) dao.User {
 	return dao.User{Id: u.Id, Email: sql.NullString{String: u.Email, Valid: u.Email != ""}, Phone: sql.NullString{String: u.Phone, Valid: u.Phone != ""}, Password: u.Password, Ctime: u.Ctime.UnixMilli()}
 }
 
-func (ur *UserRepository) entityToDomain(u dao.User) domain.User {
-	return domain.User{Id: u.Id, Email: u.Email.String, Password: u.Password, Ctime: time.UnixMilli(u.Ctime), Phone: u.Phone.String}
+func (ur *UserRepositoryI) entityToDomain(u dao.User) domain.User {
+	return domain.User{Id: u.Id, Email: u.Email.String, Password: u.Password, Ctime: time.UnixMilli(u.Ctime), Phone: u.Phone.String, Introduce: u.Introduce, Birthday: u.Birthday, Name: u.Name}
 }

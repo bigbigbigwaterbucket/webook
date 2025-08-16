@@ -21,14 +21,14 @@ var _ handler = (*UserHandler)(nil)
 
 // UserHandler 定义跟用户有关的路由
 type UserHandler struct {
-	svc            *service.UserService
-	codeSvc        *service.CodeService
+	svc            service.UserService
+	codeSvc        service.CodeService
 	EmailRegexp    *regexp.Regexp
 	PasswordRegexp *regexp.Regexp
 	BirthdayRegexp *regexp.Regexp
 }
 
-func NewUserHandler(svc *service.UserService, codeSvc *service.CodeService) (uh *UserHandler) {
+func NewUserHandler(svc service.UserService, codeSvc service.CodeService) (uh *UserHandler) {
 	const (
 		emailString    = "^[A-Za-z0-9\\u4e00-\\u9fa5]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$"
 		passwordString = ""
@@ -389,9 +389,9 @@ func (this *UserHandler) Edit(ctx *gin.Context) {
 
 func (this *UserHandler) EditJWT(ctx *gin.Context) {
 	type EditReq struct {
-		Name      string `json:"name"` //必须是大写，保证json格式数据转结构体时能够赋值，但是tag的json键不是大小写敏感的
+		Name      string `json:"nickname"` //必须是大写，保证json格式数据转结构体时能够赋值，但是tag的json键不是大小写敏感的
 		Birthday  string `json:"birthday"`
-		Introduce string `json:"introduce"`
+		Introduce string `json:"aboutMe"`
 	}
 	//go语言的处理错误的方式已经深刻融入至编程中，正常每写一个函数都要try catch，在go里。由于没有try catch，返回的就是error或nil类型，强制你去处理
 	var req EditReq

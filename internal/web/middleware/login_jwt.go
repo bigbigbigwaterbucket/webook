@@ -69,6 +69,7 @@ func (this *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
 			}
 			context.Header("x-jwt-token", tokenStr)
 		}
+		println(claims.Uid)
 		context.Set("userId", claims.Uid)
 		return
 	}

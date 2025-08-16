@@ -10,17 +10,22 @@ import (
 
 const codeTplId = "1877556"
 
-type CodeService struct {
+type CodeServiceI struct {
 	svc  sms.Service //面向接口，依赖注入
-	repo *repository.CodeRepository
+	repo repository.CodeRepository
 }
 
-func NewCodeService(svc sms.Service, repo *repository.CodeRepository) *CodeService {
-	return &CodeService{svc: svc, repo: repo}
+type CodeService interface {
+	Send(ctx context.Context, biz string, phone string) error
+	Verify(ctx context.Context, biz string, phone string, inputCode string) error
+}
+
+func NewCodeService(svc sms.Service, repo repository.CodeRepository) *CodeServiceI {
+	return &CodeServiceI{svc: svc, repo: repo}
 }
 
 // biz用来区分业务，例如修改密码的验证码和登录的验证码要区别
-func (cs *CodeService) Send(ctx context.Context, biz string, phone string) error {
+func (cs *CodeServiceI) Send(ctx context.Context, biz string, phone string) error {
 	//考虑在服务层生成验证码
 	code := cs.generateCode()
 	//在redis中设置验证码
@@ -41,11 +46,11 @@ func (cs *CodeService) Send(ctx context.Context, biz string, phone string) error
 
 // 使用两个返回值，bool用来区分业务的对错（码的对错），error区分系统错误
 // 也可以直接一个error，后续再区分
-func (cs *CodeService) Verify(ctx context.Context, biz string, phone string, inputCode string) error {
+func (cs *CodeServiceI) Verify(ctx context.Context, biz string, phone string, inputCode string) error {
 	return cs.repo.Verify(ctx, biz, phone, inputCode)
 }
 
-func (cs *CodeService) generateCode() string {
+func (cs *CodeServiceI) generateCode() string {
 	num := rand.IntN(1000000)       //6位数，最大999999
 	return fmt.Sprintf("%06d", num) //加上前导0
 }

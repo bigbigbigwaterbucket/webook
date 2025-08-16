@@ -17,33 +17,41 @@ var (
 	ErrUserNotFound = gorm.ErrRecordNotFound
 )
 
-type UserDAO struct {
+type GormUserDAO struct {
 	DB *gorm.DB
 }
 
-func NewUserDAO(db *gorm.DB) *UserDAO {
-	return &UserDAO{DB: db}
+type UserDAO interface {
+	FindByEmail(ctx context.Context, email string) (User, error)
+	FindByPhone(ctx context.Context, phone string) (User, error)
+	FindById(ctx context.Context, userId int64) (User, error)
+	Insert(ctx context.Context, u User) error
+	Update(ctx context.Context, u User) error
 }
 
-func (this *UserDAO) FindByEmail(ctx context.Context, email string) (User, error) {
+func NewUserDAO(db *gorm.DB) *GormUserDAO {
+	return &GormUserDAO{DB: db}
+}
+
+func (this *GormUserDAO) FindByEmail(ctx context.Context, email string) (User, error) {
 	var u User
 	err := this.DB.Where("email=?", email).First(&u).Error //不区分大小写
 	return u, err
 }
 
-func (this *UserDAO) FindByPhone(ctx context.Context, phone string) (User, error) {
+func (this *GormUserDAO) FindByPhone(ctx context.Context, phone string) (User, error) {
 	var u User
 	err := this.DB.Where("phone=?", phone).First(&u).Error //不区分大小写
 	return u, err
 }
 
-func (this *UserDAO) FindById(ctx context.Context, userId int64) (User, error) {
+func (this *GormUserDAO) FindById(ctx context.Context, userId int64) (User, error) {
 	var u User
 	err := this.DB.Where("Id=?", userId).First(&u).Error //不区分大小写
 	return u, err
 }
 
-func (this *UserDAO) Insert(ctx context.Context, u User) error {
+func (this *GormUserDAO) Insert(ctx context.Context, u User) error {
 	//在insert里存创建时间Ctime
 	now := time.Now().UnixMilli()
 	u.Utime = now
@@ -64,7 +72,7 @@ func (this *UserDAO) Insert(ctx context.Context, u User) error {
 	return err
 }
 
-func (this *UserDAO) Update(ctx context.Context, u User) error {
+func (this *GormUserDAO) Update(ctx context.Context, u User) error {
 	var user User
 	this.DB.First(&user, u.Id)
 	err := this.DB.Model(&user).Update("Name", u.Name).Error
