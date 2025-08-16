@@ -123,6 +123,8 @@ func (this *UserHandler) SignUp(ctx *gin.Context) {
 	var req SignUpReq
 	//Bind方法会根据 请求体的类型Content-type通常是application/json 尝试把返回的参数序列化后，传给结构体，成功就不会报错
 	if err := ctx.Bind(&req); err != nil {
+		//这里返回码会强制变成400，可能与gin框架有关
+		ctx.String(http.StatusOK, "json格式错误")
 		return
 	}
 	ok, err := this.EmailRegexp.MatchString(req.Email)
@@ -205,8 +207,8 @@ func (this *UserHandler) SetJWT(ctx *gin.Context, uid int64) error {
 		return err
 	}
 	ctx.Header("x-jwt-token", tokenStr)
-	fmt.Printf(tokenStr)
-	fmt.Printf("%v", uid)
+	fmt.Printf("%s\n", tokenStr)
+	fmt.Printf("%v\n", uid)
 	return nil
 }
 
