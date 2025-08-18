@@ -41,8 +41,9 @@ func main() {
 	userRepository := repository.NewUserRepository(userDAO, userCache)
 	userService := service.NewUserService(userRepository)
 	smsSvc := memoryTest.NewMemService()
-	codeCache := cache.NewCodeCache(redisClient)
-	codeRepository := repository.NewCodeRepository(codeCache)
+	codeMemCache := cache.NewMemCodeCache()
+	//codeCache := cache.NewCodeCache(redisClient)
+	codeRepository := repository.NewCodeRepository(codeMemCache)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	userHandler := web.NewUserHandler(userService, codeService)
 

@@ -57,7 +57,6 @@ func (this *GormUserDAO) Insert(ctx context.Context, u User) error {
 	u.Utime = now
 	u.Ctime = now
 	err := this.DB.WithContext(ctx).Create(&u).Error //ctx一直保持调用，返回的是error接口，具体是什么错误可以类型断言
-
 	//能不能先查数据库，再看有没有邮箱冲突？
 	//select * from users where email=123@qq.com for update 上锁，但这锁是间隙锁？？？ 反正就是会出现并发问题
 	//例如不同机器的不同线程，同时去查询

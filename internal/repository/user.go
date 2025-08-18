@@ -66,7 +66,7 @@ func (this *UserRepositoryI) FindById(ctx context.Context, userId int64) (domain
 		return domain.User{}, err
 	}
 	u := this.entityToDomain(ue)
-
+	//err = this.Cache.Set(ctx, u)
 	//开goroutine协程，会出现缓存一致性问题，但是只要用到了缓存，就不指望强数据一致性？？？
 	go func() {
 		err = this.Cache.Set(ctx, u)
