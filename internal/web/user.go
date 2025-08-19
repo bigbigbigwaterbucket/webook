@@ -78,12 +78,13 @@ func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
 	}
 	user, err := this.svc.FindOrCreate(ctx, req.Phone)
 	if err != nil {
+		//ctx.json返回的是结构体序列化后的json串
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
 	err = this.SetJWT(ctx, user.Id)
 	if err != nil {
-		ctx.String(http.StatusOK, "系统错误")
+		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
 	ctx.JSON(http.StatusOK, Result{Msg: "登陆成功"})

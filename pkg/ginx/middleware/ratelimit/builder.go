@@ -1,32 +1,23 @@
-package ratelimit
+package webratelimit
 
 import (
 	_ "embed"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
+	"learning_go/webook/pkg/ratelimit"
 	"log"
 	"net/http"
-	"time"
 )
 
 type Builder struct {
-	prefix   string
-	cmd      redis.Cmdable
-	interval time.Duration
-	// 阈值
-	rate int
+	prefix  string //Redis key 的“命名空间”，方便不同的业务进行不同的限流
+	limiter ratelimit.Limiter
 }
 
-//go:embed slide_window.lua
-var luaScript string
-
-func NewBuilder(cmd redis.Cmdable, interval time.Duration, rate int) *Builder {
+func NewBuilder(limit ratelimit.Limiter) *Builder {
 	return &Builder{
-		cmd:      cmd,
-		prefix:   "ip-limiter",
-		interval: interval,
-		rate:     rate,
+		prefix:  "ip-limiter", //这里执行的是ip限流，是最广层面的对web业务的访问限流
+		limiter: limit,
 	}
 }
 
@@ -40,22 +31,21 @@ func (b *Builder) Build() gin.HandlerFunc {
 		limited, err := b.limit(ctx)
 		if err != nil {
 			log.Println(err)
-			// 这一步很有意思，就是如果这边出错了
-			// 要怎么办？
+			//限流出错该怎么办？系统错误
 			ctx.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 		if limited {
 			log.Println(err)
+			//限流，返回tooManyRequests错误
 			ctx.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}
-		ctx.Next()
+		ctx.Next() //如果没被限流，把控制权交给下一个中间件或路由处理函数
 	}
 }
 
 func (b *Builder) limit(ctx *gin.Context) (bool, error) {
 	key := fmt.Sprintf("%s:%s", b.prefix, ctx.ClientIP())
-	return b.cmd.Eval(ctx, luaScript, []string{key},
-		b.interval.Milliseconds(), b.rate, time.Now().UnixMilli()).Bool()
+	return b.limiter.Limit(ctx, key)
 }

@@ -16,7 +16,8 @@ import (
 	"learning_go/webook/internal/service/sms/memoryTest"
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/middleware"
-	"learning_go/webook/pkg/ginx/middleware/ratelimit"
+	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
+	"learning_go/webook/pkg/ratelimit"
 	"strings"
 	"time"
 )
@@ -59,8 +60,9 @@ func main() {
 		println("这是第二个 middleware")
 	})
 
-	//限流为一分钟100次
-	server.Use(ratelimit.NewBuilder(redisClient, time.Second, 100).Build())
+	redisLimiter := ratelimit.NewRedisSlidingWindow(redisClient, 100, time.Second)
+	//web服务限流为一分钟100次
+	server.Use(webratelimit.NewBuilder(redisLimiter).Build())
 	//只会对cors 跨域请求进行限制，postman不会限制？  这里配置的内容就是preflight响应体返回的内容
 	server.Use(cors.New(cors.Config{
 		//允许的域名最好不要默认所有域名，看前端服务部署在哪个域名端口上

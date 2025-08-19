@@ -32,9 +32,9 @@ func (m *MemCodeCache) Set(ctx context.Context, biz, phone, code string) error {
 	} else {
 		//设置过，检查过期时间
 		diff := time.Now().Sub(val.ctime)
-		if diff.Seconds() < 50 {
+		if diff.Seconds() < 10 {
 			//没过期
-			return errors.New("验证码发送过于频繁")
+			return ErrorCodeSendTooMany
 		} else {
 			//过期了
 			m.mem[m.key(biz, phone)] = &memData{data: code, ctime: time.Now(), verifyTime: 3}
@@ -62,9 +62,10 @@ func (m *MemCodeCache) Verify(ctx context.Context, biz, phone, inputCode string)
 			}
 			if valS == inputCode {
 				val.verifyTime = -1
+				println("验证次数", val.verifyTime)
 				return nil
 			}
-			return errors.New("验证码不对")
+			return ErrorCodeNotRight
 		} else {
 			//过期了或者验证次数过多
 			return errors.New("验证码已过期")

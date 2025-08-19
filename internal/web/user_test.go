@@ -3,12 +3,14 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
 	"learning_go/webook/internal/domain"
+	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/service"
 	svcmocks "learning_go/webook/internal/service/mocks"
 	"net/http"
@@ -202,4 +204,162 @@ func TestMock(t *testing.T) {
 	// background传入一个空白上下文
 	err := usersvc.SignUp(context.Background(), domain.User{Email: "123@qq.com"})
 	t.Log(err)
+}
+
+func TestUserHandler_LoginSmsCode(t *testing.T) {
+	testCases := []struct {
+		name       string
+		reqBuilder func(t *testing.T) *http.Request
+		mock       func(ctrl *gomock.Controller) (service.UserService, service.CodeService)
+		wantRes    Result
+	}{
+		{
+			name: "登录成功",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				us := svcmocks.NewMockUserService(ctrl)
+				cs := svcmocks.NewMockCodeService(ctrl)
+				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)
+				us.EXPECT().FindOrCreate(gomock.Any(), gomock.Any()).Return(domain.User{}, nil)
+				return us, cs
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"1314xxx","code":"65422"}`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "登陆成功"},
+		},
+		{
+			name: "bind失败",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				return nil, nil
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"13`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "手机号与验证码接收失败"},
+		},
+		{
+			name: "验证码错误",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				us := svcmocks.NewMockUserService(ctrl)
+				cs := svcmocks.NewMockCodeService(ctrl)
+				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(cache.ErrorCodeNotRight)
+				return us, cs
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"1314xxx","code":"65422"}`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "验证码错误!"},
+		},
+		{
+			name: "验证次数过多",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				us := svcmocks.NewMockUserService(ctrl)
+				cs := svcmocks.NewMockCodeService(ctrl)
+				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(cache.ErrorCodeVerifyTooManyTimes)
+				return us, cs
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"1314xxx","code":"65422"}`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "验证次数过多"},
+		},
+		{
+			name: "验证系统错误",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				us := svcmocks.NewMockUserService(ctrl)
+				cs := svcmocks.NewMockCodeService(ctrl)
+				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(errors.New("redis错误"))
+				return us, cs
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"1314xxx","code":"65422"}`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "系统错误"},
+		},
+		{
+			name: "数据库系统错误",
+			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+				us := svcmocks.NewMockUserService(ctrl)
+				cs := svcmocks.NewMockCodeService(ctrl)
+				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)
+				us.EXPECT().FindOrCreate(gomock.Any(), gomock.Any()).Return(domain.User{}, errors.New("sql错误"))
+				return us, cs
+			},
+			reqBuilder: func(t *testing.T) *http.Request {
+				//json格式字符串别忘了key和val都是字符串，要加""
+				body := bytes.NewBuffer([]byte(`{"phone":"1314xxx","code":"65422"}`))
+				//url路径的前缀/别忘了，表示根路径
+				//body接收的是io.reader接口，实现该接口的有bytes.NewBUffer，很好用
+				req, err := http.NewRequest(http.MethodPost, "/users/login_sms", body)
+				req.Header.Set("Content-Type", "application/json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			wantRes: Result{Msg: "系统错误"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			uh := NewUserHandler(tc.mock(ctrl))
+			server := gin.Default()
+			uh.RegisterRouter(server)
+			req := tc.reqBuilder(t)
+			recoder := httptest.NewRecorder()
+			server.ServeHTTP(recoder, req)
+			var res Result
+			err := json.Unmarshal(recoder.Body.Bytes(), &res)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantRes, res)
+		})
+
+	}
 }
