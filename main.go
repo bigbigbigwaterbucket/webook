@@ -13,6 +13,7 @@ import (
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
+	"learning_go/webook/internal/service/oauth2/wechat"
 	"learning_go/webook/internal/service/sms/memoryTest"
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/middleware"
@@ -47,6 +48,8 @@ func main() {
 	codeRepository := repository.NewCodeRepository(codeMemCache)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	userHandler := web.NewUserHandler(userService, codeService)
+	wechatService := wechat.NewWechatService("wx7256bc69ab349c72")
+	wechatHandler := web.NewOAuth2WechatHandler(wechatService)
 
 	server := gin.Default()
 
@@ -99,9 +102,11 @@ func main() {
 	//builder := middleware.LoginMiddlewareBuilder{}
 	//server.Use(builder.Build())
 	builderJWT := middleware.LoginJWTMiddlewareBuilder{}
-	server.Use(builderJWT.AddHPath("/users/login").AddHPath("/users/signup").AddHPath("/users/login_sms/code/send").AddHPath("/users/login_sms").Build())
+	server.Use(builderJWT.AddHPath("/users/login").AddHPath("/users/signup").AddHPath("/users/login_sms/code/send").
+		AddHPath("/users/login_sms").AddHPath("/oauth2/wechat/authurl").AddHPath("/oauth2/wechat/callback").Build())
 
 	userHandler.RegisterRouter(server)
+	wechatHandler.RegisterRouter(server)
 
 	err = server.Run(":8080")
 }
