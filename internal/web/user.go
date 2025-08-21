@@ -76,7 +76,7 @@ func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
-	user, err := this.svc.FindOrCreate(ctx, req.Phone)
+	user, err := this.svc.FindOrCreateByPhone(ctx, req.Phone)
 	if err != nil {
 		//ctx.json返回的是结构体序列化后的json串
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})

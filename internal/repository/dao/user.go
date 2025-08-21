@@ -25,6 +25,7 @@ type UserDAO interface {
 	FindByEmail(ctx context.Context, email string) (User, error)
 	FindByPhone(ctx context.Context, phone string) (User, error)
 	FindById(ctx context.Context, userId int64) (User, error)
+	FindByWechat(ctx context.Context, openid string) (User, error)
 	Insert(ctx context.Context, u User) error
 	Update(ctx context.Context, u User) error
 }
@@ -48,6 +49,12 @@ func (this *GormUserDAO) FindByPhone(ctx context.Context, phone string) (User, e
 func (this *GormUserDAO) FindById(ctx context.Context, userId int64) (User, error) {
 	var u User
 	err := this.DB.Where("Id=?", userId).First(&u).Error //不区分大小写
+	return u, err
+}
+
+func (this *GormUserDAO) FindByWechat(ctx context.Context, openid string) (User, error) {
+	var u User
+	err := this.DB.Where("Openid=?", openid).First(&u).Error
 	return u, err
 }
 
@@ -96,6 +103,8 @@ type User struct {
 	//邮箱唯一
 	Email     sql.NullString `gorm:"unique"`
 	Phone     sql.NullString `gorm:"unique"` //该类型允许唯一索引有多个空值，不会冲突（不能是“”） 也可以用引用类型*string，但是要判空
+	Openid    sql.NullString `gorm:"unique"` //一个服务的id一定唯一
+	Unionid   sql.NullString //unionId和微信注册的公司有关，一个公司可以有很多个服务，id都一样
 	Password  string
 	Name      string
 	Birthday  string

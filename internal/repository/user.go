@@ -23,6 +23,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, u domain.User) (domain.User, error)
 	FindByPhone(ctx context.Context, phone string) (domain.User, error)
 	FindById(ctx context.Context, userId int64) (domain.User, error)
+	FindByWechat(ctx context.Context, openid string) (domain.User, error)
 	Create(ctx context.Context, u domain.User) error
 	Update(ctx context.Context, u domain.User) error
 }
@@ -78,6 +79,14 @@ func (this *UserRepositoryI) FindById(ctx context.Context, userId int64) (domain
 	return u, err
 }
 
+func (ur *UserRepositoryI) FindByWechat(ctx context.Context, openid string) (domain.User, error) {
+	user, err := ur.Dao.FindByWechat(ctx, openid)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return ur.entityToDomain(user), err
+}
+
 // 这里也要传web服务的context？
 func (this *UserRepositoryI) Create(ctx context.Context, u domain.User) error {
 	return this.Dao.Insert(ctx, this.domainToEntity(u))
@@ -92,9 +101,25 @@ func (this *UserRepositoryI) Update(ctx context.Context, u domain.User) error {
 }
 
 func (ur *UserRepositoryI) domainToEntity(u domain.User) dao.User {
-	return dao.User{Id: u.Id, Email: sql.NullString{String: u.Email, Valid: u.Email != ""}, Phone: sql.NullString{String: u.Phone, Valid: u.Phone != ""}, Password: u.Password, Ctime: u.Ctime.UnixMilli()}
+	return dao.User{Id: u.Id,
+		Email:    sql.NullString{String: u.Email, Valid: u.Email != ""},
+		Phone:    sql.NullString{String: u.Phone, Valid: u.Phone != ""},
+		Password: u.Password,
+		Ctime:    u.Ctime.UnixMilli(),
+		Openid:   sql.NullString{String: u.WechatInfo.OpenId, Valid: u.WechatInfo.OpenId != ""},
+		Unionid:  sql.NullString{String: u.WechatInfo.UnionId, Valid: u.WechatInfo.UnionId != ""},
+	}
 }
 
 func (ur *UserRepositoryI) entityToDomain(u dao.User) domain.User {
-	return domain.User{Id: u.Id, Email: u.Email.String, Password: u.Password, Ctime: time.UnixMilli(u.Ctime), Phone: u.Phone.String, Introduce: u.Introduce, Birthday: u.Birthday, Name: u.Name}
+	return domain.User{Id: u.Id,
+		Email:      u.Email.String,
+		Password:   u.Password,
+		Ctime:      time.UnixMilli(u.Ctime),
+		Phone:      u.Phone.String,
+		Introduce:  u.Introduce,
+		Birthday:   u.Birthday,
+		Name:       u.Name,
+		WechatInfo: domain.WechatInfo{OpenId: u.Openid.String, UnionId: u.Unionid.String},
+	}
 }

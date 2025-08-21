@@ -25,7 +25,10 @@ type UserService interface {
 	SignUp(ctx context.Context, user domain.User) error
 	Edit(ctx context.Context, user domain.User) error
 	Profile(ctx context.Context, userId int64) (domain.User, error)
-	FindOrCreate(ctx context.Context, phone string) (domain.User, error)
+	FindOrCreateByPhone(ctx context.Context, phone string) (domain.User, error)
+	// FindOrCreateByWechat 查找或者初始化
+	// 随着业务增长，这边可以考虑拆分出去作为一个新的 Service
+	FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error)
 }
 
 func NewUserService(repo repository.UserRepository) *UserServiceI {
@@ -72,7 +75,7 @@ func (this *UserServiceI) Profile(ctx context.Context, userId int64) (domain.Use
 	return user, err
 }
 
-func (this *UserServiceI) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
+func (this *UserServiceI) FindOrCreateByPhone(ctx context.Context, phone string) (domain.User, error) {
 	user, err := this.Repo.FindByPhone(ctx, phone)
 	if err != repository.ErrUserNotFound {
 		//找到了或者其他错误都进入此分支
@@ -86,4 +89,16 @@ func (this *UserServiceI) FindOrCreate(ctx context.Context, phone string) (domai
 	//坑，会遇到主从延迟问题，创建操作慢于查找操作？（（（（
 	//这里再查一遍是因为创建的时候，uid没有一并返回
 	return this.Repo.FindByPhone(ctx, phone)
+}
+
+func (this *UserServiceI) FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error) {
+	user, err := this.Repo.FindByWechat(ctx, info.OpenId)
+	if err != nil {
+		if err == repository.ErrUserNotFound {
+			err = this.Repo.Create(ctx, domain.User{WechatInfo: info})
+		}
+		return domain.User{}, err
+	}
+	return user, nil
+
 }

@@ -56,9 +56,9 @@ func (mr *MockUserServiceMockRecorder) Edit(ctx, user any) *gomock.Call {
 }
 
 // FindOrCreate mocks base method.
-func (m *MockUserService) FindOrCreate(ctx context.Context, phone string) (domain.User, error) {
+func (m *MockUserService) FindOrCreateByPhone(ctx context.Context, phone string) (domain.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOrCreate", ctx, phone)
+	ret := m.ctrl.Call(m, "FindOrCreateByPhone", ctx, phone)
 	ret0, _ := ret[0].(domain.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -67,7 +67,7 @@ func (m *MockUserService) FindOrCreate(ctx context.Context, phone string) (domai
 // FindOrCreate indicates an expected call of FindOrCreate.
 func (mr *MockUserServiceMockRecorder) FindOrCreate(ctx, phone any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrCreate", reflect.TypeOf((*MockUserService)(nil).FindOrCreate), ctx, phone)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrCreateByPhone", reflect.TypeOf((*MockUserService)(nil).FindOrCreateByPhone), ctx, phone)
 }
 
 // Login mocks base method.
