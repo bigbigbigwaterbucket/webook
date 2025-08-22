@@ -96,9 +96,12 @@ func (this *UserServiceI) FindOrCreateByWechat(ctx context.Context, info domain.
 	if err != nil {
 		if err == repository.ErrUserNotFound {
 			err = this.Repo.Create(ctx, domain.User{WechatInfo: info})
+			if err != nil {
+				return domain.User{}, err
+			}
+			return this.Repo.FindByWechat(ctx, info.OpenId)
 		}
 		return domain.User{}, err
 	}
-	return user, nil
-
+	return user, err
 }

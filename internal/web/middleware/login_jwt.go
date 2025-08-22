@@ -4,15 +4,14 @@ import (
 	"encoding/gob"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
-	"learning_go/webook/internal/web"
-	"log"
+	"learning_go/webook/internal/web/ijwt"
 	"net/http"
-	"strings"
 	"time"
 )
 
 type LoginJWTMiddlewareBuilder struct {
 	HPath []string
+	ijwt.JwtHandler
 }
 
 func (this *LoginJWTMiddlewareBuilder) AddHPath(path string) *LoginJWTMiddlewareBuilder {
@@ -29,23 +28,22 @@ func (this *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
 				return
 			}
 		}
-		token := context.GetHeader("Authorization")
-		if token == "" {
-			context.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		segs := strings.SplitN(token, " ", 2)
-		if len(segs) != 2 {
-			context.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		tokenStr := segs[1]
-		claims := &web.UserClaims{}
+		tokenStr := this.GetTokenFromAuth(context)
+		claims := ijwt.UserClaims{}
 		//函数规范：传指针就会改指针指向的值，是写；传值就是只读
-		tokenReal, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
-			return []byte("1234567890abcdef1234567890abcdef"), nil
+		tokenReal, err := jwt.ParseWithClaims(tokenStr, &claims, func(token *jwt.Token) (any, error) {
+			return ijwt.AtKey, nil
 		})
 		if err != nil {
+			context.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		//检查是否在黑名单里，是否已经注销
+		err = this.CheckSsid(context, claims.Ssid)
+		if err != nil {
+			// 系统错误或者用户已经主动退出登录了
+			// 这里也可以考虑说，如果在 Redis 已经崩溃的时候，
+			// 就不要去校验是不是已经主动退出登录了。
 			context.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -59,18 +57,20 @@ func (this *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
 			return
 		}
 
-		now := time.Now()
-		//如果距离过期时间不到50秒
-		if claims.ExpiresAt.Sub(now) < time.Second*50 {
-			claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
-			tokenStr, err = tokenReal.SignedString([]byte("1234567890abcdef1234567890abcdef"))
-			if err != nil {
-				log.Println("jwt续约失败")
-			}
-			context.Header("x-jwt-token", tokenStr)
-		}
+		////token续约，刷新过期时间，已经被长短token取代了
+		//now := time.Now()
+		////如果距离过期时间不到50秒
+		//if claims.ExpiresAt.Sub(now) < time.Second*50 {
+		//	claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
+		//	tokenStr, err = tokenReal.SignedString([]byte("1234567890abcdef1234567890abcdef"))
+		//	if err != nil {
+		//		log.Println("jwt续约失败")
+		//	}
+		//	context.Header("x-jwt-token", tokenStr)
+		//}
 		println(claims.Uid)
 		context.Set("userId", claims.Uid)
+		context.Set("user", claims) //后续退出登录时要用到短token解析到的ssid，以此把ssid加入到令牌黑名单中
 		return
 	}
 }

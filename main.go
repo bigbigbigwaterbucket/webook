@@ -16,6 +16,7 @@ import (
 	"learning_go/webook/internal/service/oauth2/wechat"
 	"learning_go/webook/internal/service/sms/memoryTest"
 	"learning_go/webook/internal/web"
+	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/internal/web/middleware"
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
@@ -47,9 +48,12 @@ func main() {
 	//codeCache := cache.NewCodeCache(redisClient)
 	codeRepository := repository.NewCodeRepository(codeMemCache)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
-	userHandler := web.NewUserHandler(userService, codeService)
-	wechatService := wechat.NewWechatService("wx7256bc69ab349c72")
-	wechatHandler := web.NewOAuth2WechatHandler(wechatService)
+	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
+
+	//web
+	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
+	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
+	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
 
 	server := gin.Default()
 
@@ -71,9 +75,9 @@ func main() {
 		//允许的域名最好不要默认所有域名，看前端服务部署在哪个域名端口上
 		//AllowOrigins: []string{"http://localhost:3000"}, //字符串切片/数组
 		//AllowMethods: []string{"POST", "GET"},
-		AllowHeaders:     []string{"authorization", "content-type"}, //允许跨域请求可以额外携带哪些字段
-		ExposeHeaders:    []string{"x-jwt-token"},                   //允许前端代码拿到某些字段
-		AllowCredentials: true,                                      //是否允许带cookie之类的东西
+		AllowHeaders:     []string{"authorization", "content-type"},  //允许跨域请求可以额外携带哪些字段
+		ExposeHeaders:    []string{"x-jwt-token", "x-refresh-token"}, //允许跨域的前端业务拿到某些字段
+		AllowCredentials: true,                                       //是否允许带cookie之类的东西
 		//自定义函数判断域名是否允许
 		AllowOriginFunc: func(origin string) bool {
 			println(origin)
@@ -101,9 +105,15 @@ func main() {
 
 	//builder := middleware.LoginMiddlewareBuilder{}
 	//server.Use(builder.Build())
-	builderJWT := middleware.LoginJWTMiddlewareBuilder{}
-	server.Use(builderJWT.AddHPath("/users/login").AddHPath("/users/signup").AddHPath("/users/login_sms/code/send").
-		AddHPath("/users/login_sms").AddHPath("/oauth2/wechat/authurl").AddHPath("/oauth2/wechat/callback").Build())
+	builderJWT := middleware.LoginJWTMiddlewareBuilder{JwtHandler: redisJwtHandler}
+	server.Use(builderJWT.AddHPath("/users/login").
+		AddHPath("/users/signup").
+		AddHPath("/users/login_sms/code/send").
+		AddHPath("/users/login_sms").
+		AddHPath("/oauth2/wechat/authurl").
+		AddHPath("/oauth2/wechat/callback").
+		AddHPath("/users/refresh_token").
+		Build())
 
 	userHandler.RegisterRouter(server)
 	wechatHandler.RegisterRouter(server)

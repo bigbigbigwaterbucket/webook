@@ -5,12 +5,12 @@ import (
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/service"
+	"learning_go/webook/internal/web/ijwt"
 	"net/http"
-	"time"
 	//"regexp"
 )
 
@@ -26,9 +26,10 @@ type UserHandler struct {
 	EmailRegexp    *regexp.Regexp
 	PasswordRegexp *regexp.Regexp
 	BirthdayRegexp *regexp.Regexp
+	ijwt.JwtHandler
 }
 
-func NewUserHandler(svc service.UserService, codeSvc service.CodeService) (uh *UserHandler) {
+func NewUserHandler(svc service.UserService, codeSvc service.CodeService, jwt ijwt.JwtHandler) (uh *UserHandler) {
 	const (
 		emailString    = "^[A-Za-z0-9\\u4e00-\\u9fa5]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$"
 		passwordString = ""
@@ -38,18 +39,60 @@ func NewUserHandler(svc service.UserService, codeSvc service.CodeService) (uh *U
 		EmailRegexp:    regexp.MustCompile(emailString, 0),
 		PasswordRegexp: regexp.MustCompile(passwordString, 0),
 		BirthdayRegexp: regexp.MustCompile(birthdayString, 0),
+		JwtHandler:     jwt,
 	}
 }
 
 func (this *UserHandler) RegisterRouter(engine *gin.Engine) {
 	//注册路由组，集中处理相同前缀的路由
+	//每在这里注册路由的时候，都要考虑一下跨域问题，如果是登录业务，那么不需要被jwt校验
 	ug := engine.Group("/users")
 	ug.POST("/signup", this.SignUp)
 	ug.POST("/login", this.LoginJWT)
 	ug.POST("/edit", this.EditJWT)
 	ug.GET("/profile", this.ProfileJWT)
+	ug.POST("/logout", this.LogOutJWT)
 	ug.POST("/login_sms/code/send", this.SendSmsCode)
 	ug.POST("/login_sms", this.LoginSmsCode)
+	ug.POST("/refresh_token", this.RefreshToken)
+}
+
+func (this *UserHandler) LogOutJWT(ctx *gin.Context) {
+	err := this.ClearToken(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, Result{Code: 5, Msg: "系统错误"})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "成功退出登录",
+	})
+}
+
+func (this *UserHandler) RefreshToken(ctx *gin.Context) {
+	tokenStr := this.GetTokenFromAuth(ctx)
+	claims := &ijwt.RefreshClaims{}
+	//函数规范：传指针就会改指针指向的值，是写；传值就是只读
+	tokenReal, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+		return ijwt.RtKey, nil
+	})
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, Result{Code: 4, Msg: "请登录"})
+		return
+	}
+	err = this.CheckSsid(ctx, claims.Ssid)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, Result{Code: 4, Msg: "请登录"})
+		return
+	}
+	if tokenReal == nil || !tokenReal.Valid || claims.Uid == 0 {
+		ctx.JSON(http.StatusUnauthorized, Result{Code: 4, Msg: "请登录"})
+		return
+	}
+	err = this.SetJwtToken(ctx, claims.Uid, claims.Ssid)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, Result{Code: 4, Msg: "请登录"})
+		return
+	}
 }
 
 func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
@@ -82,7 +125,7 @@ func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
-	err = this.SetJWT(ctx, user.Id)
+	err = this.SetLoginToken(ctx, user.Id)
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
@@ -187,36 +230,13 @@ func (this *UserHandler) LoginJWT(ctx *gin.Context) {
 		}
 	}
 
-	err = this.SetJWT(ctx, user.Id)
+	err = this.SetLoginToken(ctx, user.Id)
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 	ctx.String(http.StatusOK, "登录成功")
 	return
-}
-
-func (this *UserHandler) SetJWT(ctx *gin.Context, uid int64) error {
-	//60秒后过期，jwt的valid将变为false
-	claims := UserClaims{RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
-		Uid:       uid,
-		UserAgent: ctx.Request.UserAgent()}
-	//生成带自定义信息的token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	tokenStr, err := token.SignedString([]byte("1234567890abcdef1234567890abcdef"))
-	if err != nil {
-		return err
-	}
-	ctx.Header("x-jwt-token", tokenStr)
-	fmt.Printf("%s\n", tokenStr)
-	fmt.Printf("%v\n", uid)
-	return nil
-}
-
-type UserClaims struct {
-	jwt.RegisteredClaims
-	Uid       int64
-	UserAgent string
 }
 
 func (this *UserHandler) Login(ctx *gin.Context) {

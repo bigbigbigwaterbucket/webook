@@ -5,36 +5,35 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	uuid "github.com/lithammer/shortuuid/v4"
 	"learning_go/webook/internal/domain"
 	"net/http"
 	"net/url"
 )
 
 type WechatService interface {
-	AuthRUL(ctx context.Context) (string, error)
+	AuthRUL(ctx context.Context, state string) (string, error)
 	VerifyCode(ctx context.Context, code string) (domain.WechatInfo, error)
 }
 
-type wechatService struct {
+type WechatServiceI struct {
 	appId     string
 	appSecret string
 	webClient *http.Client //传地址
 }
 
-func NewWechatService(appId string, appSecret string) *wechatService {
-	return &wechatService{appId: appId, appSecret: appSecret, webClient: http.DefaultClient} //DefaultClient就是一个空的http.Client类型
+func NewWechatService(appId string, appSecret string) *WechatServiceI {
+	return &WechatServiceI{appId: appId, appSecret: appSecret, webClient: http.DefaultClient} //DefaultClient就是一个空的http.Client类型
 }
 
-func (w *wechatService) AuthRUL(ctx context.Context) (string, error) {
+func (w *WechatServiceI) AuthRUL(ctx context.Context, state string) (string, error) {
 	const urlPattern = "https://open.weixin.qq.com/connect/qrconnect?appid=%s&redirect_uri=%s&response_type=code&scope=snsapi_login&state=%s#wechat_redirect"
 	redirectURI := "https://meoying.com/oauth2/wechat/callback"
 	//url字符编码
 	redirectURI = url.PathEscape(redirectURI)
-	return fmt.Sprintf(urlPattern, w.appId, redirectURI, uuid.New()), nil
+	return fmt.Sprintf(urlPattern, w.appId, redirectURI, state), nil
 }
 
-func (w *wechatService) VerifyCode(ctx context.Context, code string) (domain.WechatInfo, error) {
+func (w *WechatServiceI) VerifyCode(ctx context.Context, code string) (domain.WechatInfo, error) {
 	const urlPattern = "https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%s&grant_type=authorization_code"
 	url := fmt.Sprintf(urlPattern, w.appId, w.appSecret, code)
 	//内部发送一个请求的全流程:newreques构造一个新请求，然后构造一个httpClient，让客户端去do请求，即可拿到响应resp
