@@ -9,7 +9,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
     volumes:
-      #      设置初始化脚本，讲本地的./script/mysql/下的文件挂载到容器的/docker-entrypoint-initdb.d/目录下，该目录会在初始化时自动执行.sql脚本
+      #      设置初始化脚本，将本地的./script/mysql/下的文件挂载到容器的/docker-entrypoint-initdb.d/目录下，该目录会在初始化时自动执行.sql脚本
       - ./script/mysql/:/docker-entrypoint-initdb.d/
     ports:
       #      把本机的13316端口映射到容器（虚拟化服务）的3306端口，容器的mysql服务，在本机访问13316，就相当于访问容器的3306端口
@@ -20,3 +20,10 @@ services:
       - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - '6379:6379'
+  # 分布式 远程配置中心etcd，可以实现动态管理配置参数
+  etcd:
+    image: "bitnami/etcd:latest"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes  # 容器的环境变量 允许无认证方式访问 etcd（即不用用户名密码就能连上 etcd）。
+    ports:
+      - "12379:2379"

@@ -77,20 +77,23 @@ type AccessLog struct {
 }
 
 type responseWriter struct {
-	al *AccessLog
-	gin.ResponseWriter
+	al                 *AccessLog
+	gin.ResponseWriter //组合相比接口字段的区别：方法提升+可覆写
 }
 
+// 覆写接口的方法
 func (r responseWriter) WriteHeader(statusCode int) {
 	r.al.StatusCode = statusCode
 	r.ResponseWriter.WriteHeader(statusCode)
 }
 
+// 覆写接口的方法
 func (r responseWriter) Write(data []byte) (int, error) {
 	r.al.RespBody = string(data)
 	return r.ResponseWriter.Write(data)
 }
 
+// 覆写接口的方法
 func (r responseWriter) WriteString(data string) (int, error) {
 	r.al.RespBody = data
 	return r.ResponseWriter.WriteString(data)

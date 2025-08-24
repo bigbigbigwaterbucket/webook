@@ -10,7 +10,7 @@ import (
 
 type MemCodeCache struct {
 	mutex sync.Mutex
-	mem   map[string]*memData
+	mem   map[string]*memData //TODO：这种实现有个严重问题，就是数据积累，过期了他不会自动清理
 }
 
 func NewMemCodeCache() *MemCodeCache {

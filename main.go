@@ -1,11 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
 	redisv9 "github.com/redis/go-redis/v9"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+	_ "github.com/spf13/viper/remote"
+	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/config"
@@ -18,13 +24,83 @@ import (
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/internal/web/middleware"
+	"learning_go/webook/pkg/ginx/middleware/logger"
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
 	"strings"
 	"time"
 )
 
+func initViperRemote() {
+	//引入远程配置etcd前，别忘了加载viper的remote包
+	viper.SetConfigName("dev")
+	viper.SetConfigType("yaml")
+	//两段配置：先读配置文件的信息，然后链接远程配置中心
+	err := viper.AddRemoteProvider("etcd3", "127.0.0.1:12379", "/webook")
+	if err != nil {
+		panic(err)
+	}
+	err = viper.WatchRemoteConfig()
+	if err != nil {
+		panic(err)
+	}
+	//没有用，不支持监听远程
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		println("文件已经修改")
+	})
+	err = viper.ReadRemoteConfig()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func initViper() {
+	//从程序运行参数那读取配置参数,value是默认值，返回的是地址，说明后续pflag还会修改指针指向的值
+	cp := pflag.String("config", "./webook/internal/config", "指定配置文件路径")
+	pflag.Parse() //调用该函数对cp赋值
+	println(*cp)
+	//路径、文件名、文件类型配置
+	viper.AddConfigPath("./webook/internal/config")
+	viper.SetConfigName("dev")
+	viper.SetConfigType("yaml")
+	viper.WatchConfig()
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		println("本地配置文件已经改变")
+	})
+	//设置默认值，也可以放在结构体初始化那里作为默认值
+	viper.SetDefault("mysql.dsn", "root:root@tcp(webook-mysql:3308)/webook")
+	err := viper.ReadInConfig()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func initLogger() {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	//设置全局logger，全局输出日志的
+	//你在你的代码里就可以直接用zap.XXX来记录日志
+	zap.ReplaceGlobals(logger)
+	//L()获取zap里的全局L（好像是一种类型）logger
+	zap.L().Info("日志载入成功")
+}
+
 func main() {
+	type Config struct {
+		DSN string `yaml:"dsn"` //反序列化读进来的，注意大写
+	}
+	initLogger()
+	initViper()
+	//initViperRemote()
+	var config1 Config
+	//远程链接etcd时，viper不支持对yaml文件分隔符.的解析！！！
+	err := viper.UnmarshalKey("mysql", &config1)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(config1.DSN)
 
 	//u := web.UserHandler{svc: &service.UserServiceI{}}  私有变量没法初始化的，邓明用New方法初始化
 	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
@@ -66,6 +142,9 @@ func main() {
 	server.Use(func(ctx *gin.Context) {
 		println("这是第二个 middleware")
 	})
+	server.Use(logger.NewLoggerBuilder(func(ctx *gin.Context, log *logger.AccessLog) {
+		zap.L().Debug("请求与响应信息", zap.Any("请求与响应", log))
+	}).AllowRespBody().AllowReqBody().Build())
 
 	redisLimiter := ratelimit.NewRedisSlidingWindow(redisClient, 100, time.Second)
 	//web服务限流为一分钟100次

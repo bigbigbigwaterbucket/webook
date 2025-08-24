@@ -105,11 +105,15 @@ func (h *RedisJwtHandler) GetTokenFromAuth(ctx *gin.Context) string {
 
 func (h *RedisJwtHandler) CheckSsid(ctx *gin.Context, ssid string) error {
 	cnt, err := h.cmd.Exists(ctx, h.key(ssid)).Result()
-	if err != nil {
+	switch err {
+	case redis.Nil:
+		return nil
+	case nil:
+		if cnt > 0 {
+			return errors.New("token已过期")
+		}
+		return nil
+	default:
 		return err
 	}
-	if cnt > 0 {
-		return errors.New("token已过期")
-	}
-	return nil
 }

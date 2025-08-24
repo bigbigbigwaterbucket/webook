@@ -6,6 +6,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/service"
@@ -148,6 +149,8 @@ func (this *UserHandler) SendSmsCode(ctx *gin.Context) {
 	err = this.codeSvc.Send(ctx, biz, req.Phone)
 	if err != nil {
 		if err == cache.ErrorCodeSendTooMany {
+			zap.L().Warn("验证码发送太频繁", zap.String("biz", biz), zap.String("phone", req.Phone))
+			//可以在告警系统里配置，如果上述warn一分钟出现100次，就告警
 			ctx.JSON(http.StatusOK, Result{Msg: "验证码发送太频繁"})
 			return
 		}

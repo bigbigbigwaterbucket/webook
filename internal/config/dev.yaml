@@ -1,0 +1,2 @@
+mysql:
+  dsn: "root:root@tcp(webook-mysql:3308)/webook"
