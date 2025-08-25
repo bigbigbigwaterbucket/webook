@@ -15,6 +15,7 @@ import (
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web"
+	"learning_go/webook/internal/web/ijwt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,6 +25,7 @@ import (
 type ArticleTestSuite struct {
 	suite.Suite
 	server *gin.Engine
+	db     *gorm.DB
 }
 
 func initLogger() {
@@ -43,15 +45,26 @@ func (a *ArticleTestSuite) SetupSuite() {
 	initLogger()
 	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
 	require.NoError(a.T(), err)
+	a.db = db
 	err = dao.InitTable(db)
 	require.NoError(a.T(), err)
 	a.server = gin.Default()
+	a.server.Use(func(context *gin.Context) {
+		context.Set("user", ijwt.UserClaims{Uid: 666})
+	})
 	artHandler := web.NewArticleHandler(service.NewArticleServiceI(repository.NewCachedArticleRepository(dao.NewGormArticleDao(db))))
 	artHandler.RegisterRouter(a.server)
 }
 
 func (s *ArticleTestSuite) TestABC() {
 	s.T().Log("hello，这是测试套件")
+}
+
+// 测试套件的钩子函数
+// 测试组件的特殊方法TearDownTest，别拼错了,在测试结束后执行的操作，一般用来清空数据库等
+func (s *ArticleTestSuite) TearDownTest() {
+	//清空所有数据并恢复自增主键
+	s.db.Exec("TRUNCATE TABLE articles")
 }
 
 func (s *ArticleTestSuite) TestEdit() {
@@ -76,6 +89,19 @@ func (s *ArticleTestSuite) TestEdit() {
 			},
 			after: func(t *testing.T) {
 				//检查数据库
+				var art dao.Article
+				err := s.db.Where("id=?", 1).First(&art).Error
+				assert.NoError(t, err)
+				assert.True(t, art.CTime > 0)
+				assert.True(t, art.UTime > 0)
+				art.CTime = 0
+				art.UTime = 0
+				assert.Equal(t, dao.Article{
+					Id:       1,
+					Title:    "我的标题",
+					Content:  "我的内容",
+					AuthorId: 666,
+				}, art)
 			},
 			article:  Article{Content: "我的内容", Title: "我的标题"},
 			wantCode: 200,

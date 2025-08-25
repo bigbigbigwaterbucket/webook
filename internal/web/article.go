@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/service"
+	"learning_go/webook/internal/web/ijwt"
 	"net/http"
 )
 
@@ -34,7 +35,10 @@ func (a *ArticleHandler) Edit(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Result{Msg: "请求参数绑定失败"})
 		return
 	}
-	aid, err := a.svc.Save(ctx, domain.Article{Title: req.Title, Content: req.Content})
+	c := ctx.MustGet("user")
+	//这里不可能断言错误，因为login_jwt那最差也是传入空UserClaims
+	claim, _ := c.(ijwt.UserClaims)
+	aid, err := a.svc.Save(ctx, domain.Article{Title: req.Title, Content: req.Content, Author: domain.Author{Id: claim.Uid}})
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		zap.L().Error("帖子保存失败")
