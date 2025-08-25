@@ -20,7 +20,7 @@ func NewRateLimitSmsService(svc sms.Service, limiter ratelimit.Limiter) *RateLim
 }
 
 func (s *RateLimitSmsService) Send(ctx context.Context, tpl string, args []string, number ...string) error {
-	limited, err := s.limiter.Limit(ctx, "sms:tencent")
+	limited, err := s.limiter.Limit(ctx, "sms:mem")
 	if err != nil {
 		return fmt.Errorf("redis限流系统错误:%w", err)
 	}

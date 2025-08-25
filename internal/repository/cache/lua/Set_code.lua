@@ -8,7 +8,7 @@ local key = KEYS[1]
 local cntKey = key..":cnt"
 local val = ARGV[1]
 
-local ttl= tonumber(redis.call("ttl",key))  --获取redis中key的过期时间
+local ttl= tonumber(redis.call("ttl",key))  --获取redis中key的过期时间，顺带来判断key是否存在
 
 if ttl ==-1 then
     -- key存在，但是没有过期时间

@@ -14,13 +14,14 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	glogger "gorm.io/gorm/logger"
 	"learning_go/webook/internal/config"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/service/oauth2/wechat"
-	"learning_go/webook/internal/service/sms/memoryTest"
+	"learning_go/webook/internal/service/sms/sms_implementation/memoryTest"
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/internal/web/middleware"
@@ -103,7 +104,13 @@ func main() {
 	fmt.Println(config1.DSN)
 
 	//u := web.UserHandler{svc: &service.UserServiceI{}}  私有变量没法初始化的，邓明用New方法初始化
-	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL))
+	db, err := gorm.Open(mysql.Open(config.Config.MysqlURL), &gorm.Config{Logger: glogger.New(gormLoggerFunc(zap.L().Debug),
+		glogger.Config{
+			LogLevel:                  glogger.Info,
+			SlowThreshold:             time.Millisecond * 10, //慢启动阈值，记录哪些sql执行时间慢于10ms
+			IgnoreRecordNotFoundError: true,                  //是否忽略record没找到错误，这在某些情况下是比较常见的
+			// ParameterizedQueries:      true,将插入的数据屏蔽掉，安全考虑
+		})})
 	redisClient := redisv9.NewClient(&redisv9.Options{
 		Addr: config.Config.RedisURL})
 
@@ -120,9 +127,10 @@ func main() {
 	userRepository := repository.NewUserRepository(userDAO, userCache)
 	userService := service.NewUserService(userRepository)
 	smsSvc := memoryTest.NewMemService()
-	codeMemCache := cache.NewMemCodeCache()
-	//codeCache := cache.NewCodeCache(redisClient)
-	codeRepository := repository.NewCodeRepository(codeMemCache)
+	//codeMemCache := cache.NewMemCodeCache()
+	codeCache := cache.NewCodeCache(redisClient)
+	codeDao := dao.NewCodeDaoI(db)
+	codeRepository := repository.NewCodeRepository(codeCache, codeDao)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
 
@@ -198,4 +206,10 @@ func main() {
 	wechatHandler.RegisterRouter(server)
 
 	err = server.Run(":8080")
+}
+
+type gormLoggerFunc func(msg string, fileds ...zap.Field)
+
+func (g gormLoggerFunc) Printf(msg string, args ...interface{}) {
+	g(msg, zap.Any("gormArgs", args))
 }
