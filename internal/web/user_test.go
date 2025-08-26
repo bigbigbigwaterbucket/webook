@@ -177,7 +177,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 			defer ctrl.Finish()
 			//mock解决组件依赖问题
 			usersvc, codesvc := tc.mock(ctrl)
-			hdl := NewUserHandler(usersvc, codesvc)
+			hdl := NewUserHandler(usersvc, codesvc, nil)
 			server := gin.Default()
 			hdl.RegisterRouter(server)
 			//准备请求
@@ -219,7 +219,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)
-				us.EXPECT().FindOrCreate(gomock.Any(), gomock.Any()).Return(domain.User{}, nil)
+				us.EXPECT().FindOrCreateByPhone(gomock.Any(), gomock.Any()).Return(domain.User{}, nil)
 				return us, cs
 			},
 			reqBuilder: func(t *testing.T) *http.Request {
@@ -327,7 +327,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)
-				us.EXPECT().FindOrCreate(gomock.Any(), gomock.Any()).Return(domain.User{}, errors.New("sql错误"))
+				us.EXPECT().FindOrCreateByPhone(gomock.Any(), gomock.Any()).Return(domain.User{}, errors.New("sql错误"))
 				return us, cs
 			},
 			reqBuilder: func(t *testing.T) *http.Request {
@@ -349,7 +349,8 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			uh := NewUserHandler(tc.mock(ctrl))
+			us, cs := tc.mock(ctrl)
+			uh := NewUserHandler(us, cs, nil)
 			server := gin.Default()
 			uh.RegisterRouter(server)
 			req := tc.reqBuilder(t)

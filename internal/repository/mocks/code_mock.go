@@ -40,6 +40,49 @@ func (m *MockCodeRepository) EXPECT() *MockCodeRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CreateRetry mocks base method.
+func (m *MockCodeRepository) CreateRetry(ctx context.Context, biz, phone, code string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRetry", ctx, biz, phone, code)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateRetry indicates an expected call of CreateRetry.
+func (mr *MockCodeRepositoryMockRecorder) CreateRetry(ctx, biz, phone, code any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRetry", reflect.TypeOf((*MockCodeRepository)(nil).CreateRetry), ctx, biz, phone, code)
+}
+
+// DeleteRetry mocks base method.
+func (m *MockCodeRepository) DeleteRetry(ctx context.Context, biz, phone string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteRetry", ctx, biz, phone)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteRetry indicates an expected call of DeleteRetry.
+func (mr *MockCodeRepositoryMockRecorder) DeleteRetry(ctx, biz, phone any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRetry", reflect.TypeOf((*MockCodeRepository)(nil).DeleteRetry), ctx, biz, phone)
+}
+
+// FindByKey mocks base method.
+func (m *MockCodeRepository) FindByKey(ctx context.Context, biz, phone string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByKey", ctx, biz, phone)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByKey indicates an expected call of FindByKey.
+func (mr *MockCodeRepositoryMockRecorder) FindByKey(ctx, biz, phone any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByKey", reflect.TypeOf((*MockCodeRepository)(nil).FindByKey), ctx, biz, phone)
+}
+
 // Store mocks base method.
 func (m *MockCodeRepository) Store(ctx context.Context, biz, phone, code string) error {
 	m.ctrl.T.Helper()

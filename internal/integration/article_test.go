@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/config"
-	"learning_go/webook/internal/repository"
+	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/dao"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web"
@@ -52,7 +52,7 @@ func (a *ArticleTestSuite) SetupSuite() {
 	a.server.Use(func(context *gin.Context) {
 		context.Set("user", ijwt.UserClaims{Uid: 666})
 	})
-	artHandler := web.NewArticleHandler(service.NewArticleServiceI(repository.NewCachedArticleRepository(dao.NewGormArticleDao(db))))
+	artHandler := web.NewArticleHandler(service.NewArticleServiceI(article.NewCachedArticleRepository(dao.NewGormArticleDao(db))))
 	artHandler.RegisterRouter(a.server)
 }
 
@@ -107,9 +107,83 @@ func (s *ArticleTestSuite) TestEdit() {
 			wantCode: 200,
 			wantRes:  Result[int64]{Data: 1, Msg: "OK"},
 		},
+		{
+			name: "更新帖子",
+			before: func(t *testing.T) {
+				err := s.db.Create(dao.Article{Id: 2, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
+				assert.NoError(t, err)
+			},
+			after: func(t *testing.T) {
+				//检查数据库
+				var art dao.Article
+				err := s.db.Where("id=?", 2).First(&art).Error
+				assert.NoError(t, err)
+				assert.True(t, art.UTime > 234)
+				art.UTime = 0
+				assert.Equal(t, dao.Article{
+					Id:       2,
+					Title:    "新的标题",
+					Content:  "新的内容",
+					AuthorId: 666,
+					CTime:    123,
+				}, art)
+			},
+			article:  Article{Id: 2, Content: "新的内容", Title: "新的标题"},
+			wantCode: 200,
+			wantRes:  Result[int64]{Data: 2, Msg: "OK"},
+		},
+		{
+			name: "改一篇不存在的帖子",
+			before: func(t *testing.T) {
+				err := s.db.Create(dao.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
+				assert.NoError(t, err)
+			},
+			after: func(t *testing.T) {
+				//检查数据库
+				var art dao.Article
+				err := s.db.Where("id=?", 3).First(&art).Error
+				assert.NoError(t, err)
+				assert.Equal(t, dao.Article{
+					Id:       3,
+					Title:    "我的标题",
+					Content:  "我的内容",
+					AuthorId: 666,
+					CTime:    123,
+					UTime:    234,
+				}, art)
+			},
+			article:  Article{Id: 2, Content: "新的内容", Title: "新的标题"},
+			wantCode: 200,
+			wantRes:  Result[int64]{Data: 0, Msg: "系统错误"},
+		},
+		{
+			name: "666号篡改别人(111号)的帖子",
+			before: func(t *testing.T) {
+				err := s.db.Create(dao.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 111, CTime: 123, UTime: 234}).Error
+				assert.NoError(t, err)
+			},
+			after: func(t *testing.T) {
+				//检查数据库
+				var art dao.Article
+				err := s.db.Where("id=?", 3).First(&art).Error
+				assert.NoError(t, err)
+				assert.Equal(t, dao.Article{
+					Id:       3,
+					Title:    "我的标题",
+					Content:  "我的内容",
+					AuthorId: 111,
+					CTime:    123,
+					UTime:    234,
+				}, art)
+			},
+			article:  Article{Id: 3, Content: "新的内容", Title: "新的标题"},
+			wantCode: 200,
+			wantRes:  Result[int64]{Data: 0, Msg: "系统错误"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			tc.before(t)
 			reqBody, err := json.Marshal(tc.article)
 			assert.NoError(t, err) //失败时记录，但继续执行
 			req, err := http.NewRequest(http.MethodPost, "/articles/edit", bytes.NewBuffer(reqBody))
@@ -135,11 +209,13 @@ func TestArticle(t *testing.T) {
 }
 
 type Article struct {
+	Id      int64  `json:"Id"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
 }
 
 // 这里不能直接用any，不然反序列化的时候会出问题
+// 正常用data字段用any类型的话，json反序列化的时候字段值为1会被转为float64类型
 type Result[T any] struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
