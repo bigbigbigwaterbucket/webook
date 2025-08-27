@@ -13,6 +13,7 @@ import (
 	"learning_go/webook/internal/config"
 	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/dao"
+	article2 "learning_go/webook/internal/repository/dao/article"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/ijwt"
@@ -52,7 +53,7 @@ func (a *ArticleTestSuite) SetupSuite() {
 	a.server.Use(func(context *gin.Context) {
 		context.Set("user", ijwt.UserClaims{Uid: 666})
 	})
-	artHandler := web.NewArticleHandler(service.NewArticleServiceI(article.NewCachedArticleRepository(dao.NewGormArticleDao(db))))
+	artHandler := web.NewArticleHandler(service.NewArticleServiceI(article.NewCachedArticleRepository(article2.NewGormArticleDao(db))))
 	artHandler.RegisterRouter(a.server)
 }
 
@@ -89,14 +90,14 @@ func (s *ArticleTestSuite) TestEdit() {
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art dao.Article
+				var art article2.Article
 				err := s.db.Where("id=?", 1).First(&art).Error
 				assert.NoError(t, err)
 				assert.True(t, art.CTime > 0)
 				assert.True(t, art.UTime > 0)
 				art.CTime = 0
 				art.UTime = 0
-				assert.Equal(t, dao.Article{
+				assert.Equal(t, article2.Article{
 					Id:       1,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -110,17 +111,17 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "更新帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(dao.Article{Id: 2, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
+				err := s.db.Create(article2.Article{Id: 2, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art dao.Article
+				var art article2.Article
 				err := s.db.Where("id=?", 2).First(&art).Error
 				assert.NoError(t, err)
 				assert.True(t, art.UTime > 234)
 				art.UTime = 0
-				assert.Equal(t, dao.Article{
+				assert.Equal(t, article2.Article{
 					Id:       2,
 					Title:    "新的标题",
 					Content:  "新的内容",
@@ -135,15 +136,15 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "改一篇不存在的帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(dao.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
+				err := s.db.Create(article2.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art dao.Article
+				var art article2.Article
 				err := s.db.Where("id=?", 3).First(&art).Error
 				assert.NoError(t, err)
-				assert.Equal(t, dao.Article{
+				assert.Equal(t, article2.Article{
 					Id:       3,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -159,15 +160,15 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "666号篡改别人(111号)的帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(dao.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 111, CTime: 123, UTime: 234}).Error
+				err := s.db.Create(article2.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 111, CTime: 123, UTime: 234}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art dao.Article
+				var art article2.Article
 				err := s.db.Where("id=?", 3).First(&art).Error
 				assert.NoError(t, err)
-				assert.Equal(t, dao.Article{
+				assert.Equal(t, article2.Article{
 					Id:       3,
 					Title:    "我的标题",
 					Content:  "我的内容",

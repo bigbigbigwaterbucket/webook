@@ -1,20 +1,75 @@
-package dao
+package article
 
 import (
 	"context"
 	"fmt"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"time"
 )
 
 type ArticleDao interface {
 	Insert(ctx context.Context, art Article) (int64, error)
 	UpdateById(ctx context.Context, article Article) (int64, error)
+	Sync(ctx context.Context, article Article) (int64, error)
+	UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
+}
+
+// 在dao层处理事务，那么默认制作库与线上库是同库不同表了
+func (g *GormArticleDao) Sync(ctx context.Context, article Article) (int64, error) {
+	var (
+		id  int64
+		err error
+	)
+	// tx-->transaction
+	//这里tx不会重新创建连接
+	//gorm的事务闭包，gorm帮助管理事务的生命周期
+	//commit、rollback、begin都不需要我们考虑
+	err = g.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		gdao := NewGormArticleDao(tx)
+		if article.Id > 0 {
+			id, err = gdao.UpdateById(ctx, article)
+		} else {
+			id, err = gdao.Insert(ctx, article)
+		}
+		if err != nil {
+			//让gorm自动回滚
+			return err
+		}
+		//操作线上库（表）
+		id, err = gdao.UpdateOrInsert(ctx, PublishArticle{Article: article})
+		return err
+	})
+	return id, err
+}
+
+func (g *GormArticleDao) UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error) {
+	now := time.Now().UnixMilli()
+	art.CTime = now
+	art.UTime = now
+	//创建字句，例如where、on duplicate key等等
+	err := g.db.Clauses(clause.OnConflict{
+		//字句冲突可选项：
+		//哪些列冲突时触发：
+		//Columns: []clause.Column{clause.Column{Name: "id"}},
+		//数据冲突时啥都不干
+		//DoNothing: true,
+		//数据冲突，且符合where条件时就会执行DoUpdates
+		//Where: clause.Where{}
+		DoUpdates: clause.Assignments(map[string]any{
+			"title":   art.Title,
+			"content": art.Content,
+			"utime":   art.UTime,
+		})}).Create(&art).Error
+	//最终生成的子句: Insert xxx on duplicate key update xxx
+	//这里不需要开启事务，因为是一条sql语句，正常不需要
+	return art.Id, err
 }
 
 func (g *GormArticleDao) Insert(ctx context.Context, art Article) (int64, error) {
@@ -70,4 +125,8 @@ type Article struct {
 	AuthorId int64 `gorm:"index=aid_ctime"`
 	CTime    int64 `gorm:"index=aid_ctime"`
 	UTime    int64
+}
+
+type PublishArticle struct {
+	Article
 }
