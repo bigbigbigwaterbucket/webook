@@ -9,20 +9,20 @@ import (
 	"time"
 )
 
-type AsyncSmsService struct {
+type AsyncSmsServiceV0 struct {
 	svcs      []sms.Service
 	limiter   ratelimit.Limiter
 	repo      repository.CodeRepository
 	retryTime int
 }
 
-func (a *AsyncSmsService) ActAsync(ctx context.Context) (bool, error) {
+func (a *AsyncSmsServiceV0) ActAsync(ctx context.Context) (bool, error) {
 	limited, err := a.limiter.Limit(ctx, "sms:async")
 	return limited, err
 }
 
 // 这里的sms服务锁死成发送验证码的短信服务了，但由于repo只设置了code repo，所以暂时先这样
-func (a *AsyncSmsService) Send(ctx context.Context, tpl string, args []string, number ...string) error {
+func (a *AsyncSmsServiceV0) Send(ctx context.Context, tpl string, args []string, number ...string) error {
 	act, err := a.ActAsync(ctx)
 	if err != nil {
 		return err
