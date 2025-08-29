@@ -2,6 +2,7 @@ package article
 
 import (
 	"context"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository/dao/article"
@@ -12,6 +13,7 @@ type ArticleRepository interface {
 	Update(ctx context.Context, article domain.Article) (int64, error)
 	//存储并同步数据
 	Sync(ctx context.Context, article domain.Article) (int64, error)
+	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
 }
 
 type CachedArticleRepository struct {
@@ -20,6 +22,10 @@ type CachedArticleRepository struct {
 	reader article.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db *gorm.DB
+}
+
+func (c *CachedArticleRepository) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
+	return c.dao.SyncStatus(ctx, id, uid, status)
 }
 
 // 假设线上库和制作库使用同一个数据库，则尝试在repository层解决事务问题，那么需要在repo结构体传入一个db
@@ -56,17 +62,17 @@ func (c *CachedArticleRepository) SyncV2(ctx context.Context, art domain.Article
 }
 
 // 该同步数据库的操作默认线上库和制作库是不同数据库，因此没有开启本地事务
-func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) (int64, error) {
+func (c *CachedArticleRepository) SyncV1(ctx context.Context, art domain.Article) (int64, error) {
 	var aid int64
 	aid = art.Id
 	var err error
 	if art.Id > 0 {
-		err = c.author.UpdateById(ctx, c.DomainToEntity(art))
+		_, err = c.dao.UpdateById(ctx, c.DomainToEntity(art))
 		if err != nil {
 			return art.Id, err
 		}
 	} else {
-		aid, err = c.author.Insert(ctx, c.DomainToEntity(art))
+		aid, err = c.dao.Insert(ctx, c.DomainToEntity(art))
 		if err != nil {
 			return aid, err
 		}
@@ -76,18 +82,22 @@ func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) 
 	return aid, err
 }
 
+// 在dao层处理事务的版本
+func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) (int64, error) {
+	return c.dao.Sync(ctx, c.DomainToEntity(art))
+}
 func NewCachedArticleRepository(dao article.ArticleDao) *CachedArticleRepository {
 	return &CachedArticleRepository{dao: dao}
 }
 
 func (c *CachedArticleRepository) Create(ctx context.Context, art domain.Article) (int64, error) {
-	return c.dao.Insert(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id})
+	return c.dao.Insert(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
 func (c *CachedArticleRepository) Update(ctx context.Context, art domain.Article) (int64, error) {
-	return c.dao.UpdateById(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id})
+	return c.dao.UpdateById(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
 func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Article {
-	return article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id}
+	return article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()}
 }

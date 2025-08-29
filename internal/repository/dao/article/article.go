@@ -2,7 +2,9 @@ package article
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -14,10 +16,31 @@ type ArticleDao interface {
 	UpdateById(ctx context.Context, article Article) (int64, error)
 	Sync(ctx context.Context, article Article) (int64, error)
 	UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error)
+	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
+}
+
+func (g *GormArticleDao) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
+	err := g.db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UnixMilli()
+		res := tx.WithContext(ctx).Model(&Article{}).Where("id = ? and author_id = ?", id, uid).
+			Updates(map[string]any{"status": status, "u_time": now})
+		//最好不要习惯性写.error，记得考虑一下RowsAffected属性！
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			zap.L().Warn("id与作者不匹配", zap.Int64("id", id), zap.Int64("uid", uid))
+			return errors.New("id与作者不匹配")
+		}
+		err := tx.WithContext(ctx).Model(&PublishArticle{}).Where("id = ? and author_id = ?", id, uid).
+			Updates(map[string]any{"status": status, "u_time": now}).Error
+		return err
+	})
+	return err
 }
 
 // 在dao层处理事务，那么默认制作库与线上库是同库不同表了
@@ -32,6 +55,7 @@ func (g *GormArticleDao) Sync(ctx context.Context, article Article) (int64, erro
 	//commit、rollback、begin都不需要我们考虑
 	err = g.db.Transaction(func(tx *gorm.DB) error {
 		var err error
+		//这里重新又封装了一下tx，为的是使用GormArticleDao定义好的方法
 		gdao := NewGormArticleDao(tx)
 		if article.Id > 0 {
 			id, err = gdao.UpdateById(ctx, article)
@@ -42,6 +66,8 @@ func (g *GormArticleDao) Sync(ctx context.Context, article Article) (int64, erro
 			//让gorm自动回滚
 			return err
 		}
+		//之前是值传递，article的id并没有被反向更新到sync函数的局部变量！！
+		article.Id = id
 		//操作线上库（表）
 		id, err = gdao.UpdateOrInsert(ctx, PublishArticle{Article: article})
 		return err
@@ -65,7 +91,8 @@ func (g *GormArticleDao) UpdateOrInsert(ctx context.Context, art PublishArticle)
 		DoUpdates: clause.Assignments(map[string]any{
 			"title":   art.Title,
 			"content": art.Content,
-			"utime":   art.UTime,
+			"u_time":  art.UTime,
+			"status":  art.Status,
 		})}).Create(&art).Error
 	//最终生成的子句: Insert xxx on duplicate key update xxx
 	//这里不需要开启事务，因为是一条sql语句，正常不需要
@@ -90,7 +117,8 @@ func (g *GormArticleDao) UpdateById(ctx context.Context, art Article) (int64, er
 	res := g.db.WithContext(ctx).Model(&art).Where("id=? and author_Id =?", art.Id, art.AuthorId).Updates(map[string]any{
 		"Title":   art.Title,
 		"Content": art.Content,
-		"UTime":   art.UTime,
+		"u_time":  art.UTime,
+		"Status":  art.Status,
 	})
 	//在数据库这验证文章id与作者id是否匹配，防止别人篡改文章，相比在业务层查询并验证，性能更高（只查1次）
 	if res.Error != nil {
@@ -125,6 +153,7 @@ type Article struct {
 	AuthorId int64 `gorm:"index=aid_ctime"`
 	CTime    int64 `gorm:"index=aid_ctime"`
 	UTime    int64
+	Status   uint8
 }
 
 type PublishArticle struct {

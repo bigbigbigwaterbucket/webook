@@ -10,7 +10,8 @@ import (
 
 type ArticleService interface {
 	Save(ctx context.Context, article domain.Article) (int64, error)
-	Publish(ctx *gin.Context, art domain.Article) error
+	Publish(ctx *gin.Context, art domain.Article) (int64, error)
+	Withdraw(ctx *gin.Context, id int64, uid int64) error
 }
 
 type ArticleServiceI struct {
@@ -19,7 +20,19 @@ type ArticleServiceI struct {
 	reader article.ArticleReaderRepository
 }
 
-func (a *ArticleServiceI) Publish(ctx *gin.Context, art domain.Article) error {
+func (a *ArticleServiceI) Withdraw(ctx *gin.Context, id int64, uid int64) error {
+	return a.repo.SyncStatus(ctx, id, uid, domain.ArticleStatusPrivate.ToUnt8())
+}
+
+// 最终放在dao层处理事务的版本（同库不同表
+func (a *ArticleServiceI) Publish(ctx *gin.Context, art domain.Article) (int64, error) {
+	art.Status = domain.ArticleStatusPublished
+	id, err := a.repo.Sync(ctx, art)
+	return id, err
+}
+
+// 在service层“尝试”处理事务（一般用来处理分布式事务
+func (a *ArticleServiceI) PublishV0(ctx *gin.Context, art domain.Article) error {
 	var (
 		aid int64
 		err error
@@ -59,6 +72,7 @@ func NewArticleServiceI(repo article.ArticleRepository) *ArticleServiceI {
 }
 
 func (a *ArticleServiceI) Save(ctx context.Context, article domain.Article) (int64, error) {
+	article.Status = domain.ArticleStatusUnPublished
 	if article.Id > 0 {
 		return a.repo.Update(ctx, article)
 	}

@@ -27,3 +27,26 @@ services:
       - ALLOW_NONE_AUTHENTICATION=yes  # 容器的环境变量 允许无认证方式访问 etcd（即不用用户名密码就能连上 etcd）。
     ports:
       - "12379:2379"
+
+  mongo:
+    image: mongo:6.0
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27017:27017"
+
+  # 为mongoDB提供一个web界面，用于在浏览器内管理和查看mongoDB
+  mongo-express:
+    image: mongo-express:1.0.2-20-alpine3.19
+    ports:
+      - "18081:8081"
+    restart: always
+    environment:
+      # web界面的用户名
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      # 密码
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      # 连接到docker内部的mongoDB服务
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
