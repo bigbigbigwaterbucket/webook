@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func WrapperBodyAndToken[Req any, C jwt.Claims](handler func(*gin.Context, Req, C) (Result, error)) gin.HandlerFunc {
+func WrapperReqAndToken[Req any, C jwt.Claims](handler func(*gin.Context, Req, C) (Result, error)) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var req Req
 		err := ctx.Bind(&req)
@@ -22,6 +22,22 @@ func WrapperBodyAndToken[Req any, C jwt.Claims](handler func(*gin.Context, Req, 
 			return
 		}
 		res, err := handler(ctx, req, cReal)
+		if err != nil {
+			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
+		}
+		ctx.JSON(http.StatusOK, res)
+	}
+}
+
+func WrapperToken[C jwt.Claims](handler func(*gin.Context, C) (Result, error)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		c := ctx.MustGet("user")
+		cReal, ok := c.(C)
+		if !ok {
+			ctx.JSON(http.StatusUnauthorized, Result{Msg: "未登录"})
+			return
+		}
+		res, err := handler(ctx, cReal)
 		if err != nil {
 			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
 		}

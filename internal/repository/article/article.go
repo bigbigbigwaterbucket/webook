@@ -18,6 +18,7 @@ type ArticleRepository interface {
 	Sync(ctx context.Context, article domain.Article) (int64, error)
 	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
 	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
+	FindById(ctx *gin.Context, aid int64) (domain.Article, error)
 }
 
 type CachedArticleRepository struct {
@@ -29,12 +30,32 @@ type CachedArticleRepository struct {
 	cache cache.ArticleCache
 }
 
+func (c *CachedArticleRepository) FindById(ctx *gin.Context, aid int64) (domain.Article, error) {
+	artCached, err := c.cache.Get(ctx, aid)
+	if err == nil {
+		println("list命中第一篇文章缓存")
+		return artCached, err
+	}
+	art, err := c.dao.GetByArticleId(ctx, aid)
+	if err != nil {
+		return domain.Article{}, err
+	}
+	return c.EntityToDomain(art), nil
+}
+
 func (c *CachedArticleRepository) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
 	if offset == 0 && limit <= 100 {
 		data, err := c.cache.GetFirstPage(ctx, uid)
 		//注意这里缓存方法是允许有错误的
 		if err == nil {
-			return data[:limit], err
+			if len(data) > int(limit) {
+				return data[:limit], err
+			}
+			//拿到数据后肯定会访问，因此也要预缓存
+			go func() {
+				c.preCache(ctx, data)
+			}()
+			return data, err
 		}
 	}
 	//这里还要进行下数据结构的转换
@@ -45,14 +66,27 @@ func (c *CachedArticleRepository) List(ctx *gin.Context, uid int64, offset int64
 	data := slice.Map[article.Article, domain.Article](res, func(idx int, src article.Article) domain.Article {
 		return c.EntityToDomain(src)
 	})
-	//可以同步，也可以异步
+	//可以同步，也可以异步，一般异步都是做成可配置的
 	go func() {
 		err := c.cache.SetFirstPage(ctx, uid, data)
 		if err != nil {
-			zap.L().Error("回写缓存失败", zap.Int64("uid", uid))
+			zap.L().Error("list回写缓存失败", zap.Int64("uid", uid))
 		}
+		c.preCache(ctx, data)
 	}()
 	return data, nil
+}
+
+func (c *CachedArticleRepository) preCache(ctx context.Context, data []domain.Article) {
+	const contentSizeThreshold = 1024 * 1024
+	//限制文章(string)的字节数，如果大于1MB，就不缓存了，太大了
+	//注意判断data是否大于0
+	if len(data) > 0 && len(data[0].Content) <= contentSizeThreshold {
+		err := c.cache.Set(ctx, data[0])
+		if err != nil {
+			zap.L().Error("首篇文章回写缓存失败", zap.Int64("uid", data[0].Id))
+		}
+	}
 }
 
 func (c *CachedArticleRepository) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
@@ -124,8 +158,8 @@ func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) 
 	}()
 	return c.dao.Sync(ctx, c.DomainToEntity(art))
 }
-func NewCachedArticleRepository(dao article.ArticleDao) *CachedArticleRepository {
-	return &CachedArticleRepository{dao: dao}
+func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache) *CachedArticleRepository {
+	return &CachedArticleRepository{dao: dao, cache: cache}
 }
 
 func (c *CachedArticleRepository) Create(ctx context.Context, art domain.Article) (int64, error) {
@@ -151,7 +185,8 @@ func (c *CachedArticleRepository) Update(ctx context.Context, art domain.Article
 
 // 这里dao层的ctime与utime就没必要修改了，也最好不要传进去，不要让他修改数据库的数据
 func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Article {
-	return article.Article{Id: art.Id,
+	return article.Article{
+		Id:       art.Id,
 		Title:    art.Title,
 		Content:  art.Content,
 		AuthorId: art.Author.Id,
@@ -159,7 +194,8 @@ func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Art
 }
 
 func (c *CachedArticleRepository) EntityToDomain(art article.Article) domain.Article {
-	return domain.Article{Id: art.Id,
+	return domain.Article{
+		Id:      art.Id,
 		Title:   art.Title,
 		Content: art.Content,
 		Author:  domain.Author{Id: art.AuthorId},

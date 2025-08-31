@@ -136,7 +136,8 @@ func main() {
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
 	articleDao := article2.NewGormArticleDao(db)
-	articleRepository := article.NewCachedArticleRepository(articleDao)
+	articleCache := cache.NewRedisArticleCache(redisClient)
+	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache)
 	articleService := service.NewArticleServiceI(articleRepository)
 
 	//web

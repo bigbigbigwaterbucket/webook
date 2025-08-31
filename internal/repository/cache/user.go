@@ -44,7 +44,7 @@ func (uc *RedisUserCache) Get(ctx context.Context, id int64) (domain.User, error
 }
 
 func (uc *RedisUserCache) Set(ctx context.Context, u domain.User) error {
-	val, err := json.Marshal(u) //json序列化，用于把一个结构体对象转为json格式的数据 key:value
+	val, err := json.Marshal(u) //json序列化，用于把一个结构体对象转为json格式的数据 FirstPageKey:value
 	if err != nil {
 		return err
 	}

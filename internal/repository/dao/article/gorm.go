@@ -18,10 +18,17 @@ type ArticleDao interface {
 	UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error)
 	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
 	GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error)
+	GetByArticleId(ctx *gin.Context, aid int64) (Article, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
+}
+
+func (g *GormArticleDao) GetByArticleId(ctx *gin.Context, aid int64) (Article, error) {
+	var art Article
+	res := g.db.WithContext(ctx).Model(&Article{}).Where("id=?", aid).First(&art)
+	return art, res.Error
 }
 
 func (g *GormArticleDao) GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error) {

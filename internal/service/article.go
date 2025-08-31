@@ -13,12 +13,17 @@ type ArticleService interface {
 	Publish(ctx *gin.Context, art domain.Article) (int64, error)
 	Withdraw(ctx *gin.Context, id int64, uid int64) error
 	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
+	GetPublishedById(ctx *gin.Context, aid int64) (domain.Article, error)
 }
 
 type ArticleServiceI struct {
 	repo   article.ArticleRepository
 	author article.ArticleAuthorRepository
 	reader article.ArticleReaderRepository
+}
+
+func (a *ArticleServiceI) GetPublishedById(ctx *gin.Context, aid int64) (domain.Article, error) {
+	return a.repo.FindById(ctx, aid)
 }
 
 func (a *ArticleServiceI) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
