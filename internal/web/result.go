@@ -1,7 +1,5 @@
 package web
 
-type Result struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data any    `json:"data"`
-}
+import "learning_go/webook/pkg/ginx"
+
+type Result = ginx.Result

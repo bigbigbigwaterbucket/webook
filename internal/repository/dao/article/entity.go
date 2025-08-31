@@ -13,9 +13,9 @@ type Article struct {
 
 	//以下创建了联合索引
 	//关于索引设计对查询的加速，可以学学explain命令
-	AuthorId int64 `gorm:"index=aid_ctime" bson:"author_id,omitempty"`
-	CTime    int64 `gorm:"index=aid_ctime" bson:"c_time,omitempty"`
-	UTime    int64 `bson:"u_time,omitempty"`
+	AuthorId int64 `gorm:"index=aid_time,priority=1" bson:"author_id,omitempty"`
+	CTime    int64 `gorm:"index=aid_time,priority=3" bson:"c_time,omitempty"`
+	UTime    int64 `gorm:"index=aid_time,priority=2" bson:"u_time,omitempty"`
 	Status   uint8 `bson:"status,omitempty"`
 }
 

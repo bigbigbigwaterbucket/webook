@@ -74,7 +74,10 @@ func (a *ArticleTestSuiteMongoDB) SetupSuite() {
 	client, err := mongo.Connect(ctx, opt)
 	require.NoError(a.T(), err)
 	a.db = client.Database("webook")
-	article2.InitMongoDBCollection(a.db)
+	err = article2.InitMongoDBCollection(a.db)
+	if err != nil {
+		panic(err)
+	}
 	require.NoError(a.T(), err)
 	a.server = gin.Default()
 	a.server.Use(func(context *gin.Context) {

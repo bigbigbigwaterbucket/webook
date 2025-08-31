@@ -1,11 +1,13 @@
 package web
 
 import (
+	"github.com/ecodeclub/ekit/slice"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web/ijwt"
+	"learning_go/webook/pkg/ginx"
 	"net/http"
 )
 
@@ -22,9 +24,11 @@ func NewArticleHandler(svc service.ArticleService) *ArticleHandler {
 func (a *ArticleHandler) RegisterRouter(engine *gin.Engine) {
 	server := engine.Group("/articles")
 	//非restful路由风格
-	server.POST("/edit", a.Edit)
+	server.POST("/edit", ginx.WrapperBodyAndToken[ArticleReq, ijwt.UserClaims](a.Edit))
 	server.POST("/publish", a.Publish)
 	server.POST("/withdraw", a.Withdraw)
+	//创作者的分页查询接口 按照restful规范，应该用GET方法
+	server.POST("/list", ginx.WrapperBodyAndToken[ListReq, ijwt.UserClaims](a.List))
 }
 
 func (a *ArticleHandler) Publish(ctx *gin.Context) {
@@ -46,23 +50,13 @@ func (a *ArticleHandler) Publish(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: id})
 }
 
-func (a *ArticleHandler) Edit(ctx *gin.Context) {
-	var req ArticleReq
-	if err := ctx.Bind(&req); err != nil {
-		ctx.JSON(http.StatusOK, Result{Msg: "请求参数绑定失败"})
-		return
-	}
-	c := ctx.MustGet("user")
+func (a *ArticleHandler) Edit(ctx *gin.Context, req ArticleReq, claim ijwt.UserClaims) (Result, error) {
 	//这里不可能断言错误，因为login_jwt那最差也是传入空UserClaims
-	claim, _ := c.(ijwt.UserClaims)
 	aid, err := a.svc.Save(ctx, domain.Article{Id: req.Id, Title: req.Title, Content: req.Content, Author: domain.Author{Id: claim.Uid}})
 	if err != nil {
-		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
-		zap.L().Error("帖子保存失败")
-		return
+		return Result{Msg: "系统错误"}, err
 	}
-	ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: aid})
-
+	return Result{Msg: "OK", Data: aid}, err
 }
 
 func (a *ArticleHandler) Withdraw(ctx *gin.Context) {
@@ -86,8 +80,24 @@ func (a *ArticleHandler) Withdraw(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, Result{Msg: "OK"})
 }
 
-type ArticleReq struct {
-	Id      int64  `json:"id"`
-	Title   string `json:"title"`
-	Content string `json:"content"`
+func (a *ArticleHandler) List(ctx *gin.Context, req ListReq, claim ijwt.UserClaims) (ginx.Result, error) {
+	res, err := a.svc.List(ctx, claim.Uid, req.Offset, req.Limit)
+	if err != nil {
+		return Result{Msg: "系统错误"}, err
+	}
+	return Result{
+		//对切片的每个元素应用xxx函数，即map
+		Data: slice.Map[domain.Article, ArticleVO](res, func(idx int, src domain.Article) ArticleVO {
+			return ArticleVO{
+				Id:    src.Id,
+				Title: src.Title,
+				//在列表页，不需要显示全文，只需要显示摘要，简单的摘要就是几句话
+				Abstract: src.Abstract(),
+				Status:   src.Status.ToUnt8(),
+				Ctime:    src.CTime,
+				Utime:    src.UTime,
+				//Content: src.Content,
+			}
+		}),
+	}, nil
 }

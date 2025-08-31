@@ -17,8 +17,10 @@ import (
 	glogger "gorm.io/gorm/logger"
 	"learning_go/webook/internal/config"
 	"learning_go/webook/internal/repository"
+	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
+	article2 "learning_go/webook/internal/repository/dao/article"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/service/oauth2/wechat"
 	"learning_go/webook/internal/service/sms/sms_implementation/memoryTest"
@@ -133,11 +135,15 @@ func main() {
 	codeRepository := repository.NewCodeRepository(codeCache, codeDao)
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
+	articleDao := article2.NewGormArticleDao(db)
+	articleRepository := article.NewCachedArticleRepository(articleDao)
+	articleService := service.NewArticleServiceI(articleRepository)
 
 	//web
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
 	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
+	articleHandler := web.NewArticleHandler(articleService)
 
 	server := gin.Default()
 
@@ -204,6 +210,7 @@ func main() {
 
 	userHandler.RegisterRouter(server)
 	wechatHandler.RegisterRouter(server)
+	articleHandler.RegisterRouter(server)
 
 	err = server.Run(":8080")
 }

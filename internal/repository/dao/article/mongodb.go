@@ -29,9 +29,52 @@ func NewMongoDBArticleDao(col *mongo.Collection, liveCol *mongo.Collection, node
 }
 
 // InitMongoDBCollection只负责建表（collection），如果想获取表，mongoDB需要根据表名来获取
-func InitMongoDBCollection(db *mongo.Database) {
-	_ = db.Collection("articles")
-	_ = db.Collection("publish_articles")
+func InitMongoDBCollection(db *mongo.Database) error {
+	//_ = db.Collection("articles")
+	//_ = db.Collection("publish_articles")
+	return InitCollectionIndex(db)
+}
+
+func InitCollectionIndex(db *mongo.Database) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	index := []mongo.IndexModel{
+		{
+			//id业务里使用，一般都会建一个唯一索引
+			Keys:    bson.D{bson.E{Key: "id", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			//索引设计的ESR原则，Equal、Sort、Range
+			//这里制作库需要按作者查询内容，并且按ctime排序
+			Keys: bson.D{bson.E{Key: "author_id", Value: 1},
+				bson.E{Key: "ctime", Value: 1},
+			},
+			Options: options.Index(),
+		},
+	}
+	//在子文档/嵌套字段上建立索引
+	indexLive := []mongo.IndexModel{
+		{
+			//id业务里使用，一般都会建一个唯一索引
+			Keys:    bson.D{bson.E{Key: "article.id", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			//索引设计的ESR原则，Equal、Sort、Range
+			//这里制作库需要按作者查询内容，并且按ctime排序
+			Keys: bson.D{bson.E{Key: "article.author_id", Value: 1},
+				bson.E{Key: "article.c_time", Value: 1},
+			},
+			Options: options.Index(),
+		},
+	}
+	_, err := db.Collection("articles").Indexes().CreateMany(ctx, index)
+	if err != nil {
+		return err
+	}
+	_, err = db.Collection("publish_articles").Indexes().CreateMany(ctx, indexLive)
+	return err
 }
 
 func (m *MongoDBArticleDao) Insert(ctx context.Context, art Article) (int64, error) {
@@ -93,13 +136,18 @@ func (m *MongoDBArticleDao) Sync(ctx context.Context, art Article) (int64, error
 	art.Id = id
 	//由于这里没做事务，因此只能简单重试
 	publishArt := PublishArticle{Article: art}
+	return m.UpdateOrInsert(ctx, publishArt)
+}
+
+func (m *MongoDBArticleDao) UpdateOrInsert(ctx context.Context, publishArt PublishArticle) (int64, error) {
 	now := time.Now().UnixMilli()
 	publishArt.UTime = now
+	var err error
 	for i := 0; i < 1; i++ {
 		//线上库要实现upsert
 		//$setOnInsert字段其实是在set的基础上重新创建字段，因此要避免和$set字段更新的值冲突
-		_, err := m.liveCollection.UpdateOne(ctx,
-			bson.M{"article.id": art.Id},
+		_, err = m.liveCollection.UpdateOne(ctx,
+			bson.M{"article.id": publishArt.Id},
 			//这里插入的是是article结构体字段，不会像mysql一样需要拆成基础字段，而是直接插入一个article结构体bson
 			bson.M{"$set": bson.M{"article.title": publishArt.Title, "article.content": publishArt.Content,
 				"article.u_time": publishArt.UTime,
@@ -111,12 +159,7 @@ func (m *MongoDBArticleDao) Sync(ctx context.Context, art Article) (int64, error
 			break
 		}
 	}
-	return id, err
-}
-
-func (m *MongoDBArticleDao) UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error) {
-	//TODO implement me
-	panic("implement me")
+	return publishArt.Id, err
 }
 
 func (m *MongoDBArticleDao) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {

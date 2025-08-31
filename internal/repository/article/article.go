@@ -2,9 +2,12 @@ package article
 
 import (
 	"context"
+	"github.com/ecodeclub/ekit/slice"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/domain"
+	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao/article"
 )
 
@@ -14,6 +17,7 @@ type ArticleRepository interface {
 	//存储并同步数据
 	Sync(ctx context.Context, article domain.Article) (int64, error)
 	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
+	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
 }
 
 type CachedArticleRepository struct {
@@ -21,7 +25,34 @@ type CachedArticleRepository struct {
 	author article.AuthorDao
 	reader article.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.ArticleCache
+}
+
+func (c *CachedArticleRepository) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
+	if offset == 0 && limit <= 100 {
+		data, err := c.cache.GetFirstPage(ctx, uid)
+		//注意这里缓存方法是允许有错误的
+		if err == nil {
+			return data[:limit], err
+		}
+	}
+	//这里还要进行下数据结构的转换
+	res, err := c.dao.GetByAuthor(ctx, uid, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	data := slice.Map[article.Article, domain.Article](res, func(idx int, src article.Article) domain.Article {
+		return c.EntityToDomain(src)
+	})
+	//可以同步，也可以异步
+	go func() {
+		err := c.cache.SetFirstPage(ctx, uid, data)
+		if err != nil {
+			zap.L().Error("回写缓存失败", zap.Int64("uid", uid))
+		}
+	}()
+	return data, nil
 }
 
 func (c *CachedArticleRepository) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
@@ -84,6 +115,13 @@ func (c *CachedArticleRepository) SyncV1(ctx context.Context, art domain.Article
 
 // 在dao层处理事务的版本
 func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) (int64, error) {
+	//这里的sync实际上是publish调用的，也涉及对文章内容的改变，因此需要释放缓存
+	defer func() {
+		err := c.cache.DelFirstPage(ctx, art.Author.Id)
+		if err != nil {
+			zap.L().Error("删除缓存失败", zap.Error(err))
+		}
+	}()
 	return c.dao.Sync(ctx, c.DomainToEntity(art))
 }
 func NewCachedArticleRepository(dao article.ArticleDao) *CachedArticleRepository {
@@ -91,13 +129,42 @@ func NewCachedArticleRepository(dao article.ArticleDao) *CachedArticleRepository
 }
 
 func (c *CachedArticleRepository) Create(ctx context.Context, art domain.Article) (int64, error) {
+	//插入一篇文章，所有缓存都删掉...  也没法判定第一页
+	defer func() {
+		err := c.cache.DelFirstPage(ctx, art.Author.Id)
+		if err != nil {
+			zap.L().Error("删除缓存失败", zap.Error(err))
+		}
+	}()
 	return c.dao.Insert(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
 func (c *CachedArticleRepository) Update(ctx context.Context, art domain.Article) (int64, error) {
+	defer func() {
+		err := c.cache.DelFirstPage(ctx, art.Author.Id)
+		if err != nil {
+			zap.L().Error("删除缓存失败", zap.Error(err))
+		}
+	}()
 	return c.dao.UpdateById(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
+// 这里dao层的ctime与utime就没必要修改了，也最好不要传进去，不要让他修改数据库的数据
 func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Article {
-	return article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()}
+	return article.Article{Id: art.Id,
+		Title:    art.Title,
+		Content:  art.Content,
+		AuthorId: art.Author.Id,
+		Status:   art.Status.ToUnt8()}
+}
+
+func (c *CachedArticleRepository) EntityToDomain(art article.Article) domain.Article {
+	return domain.Article{Id: art.Id,
+		Title:   art.Title,
+		Content: art.Content,
+		Author:  domain.Author{Id: art.AuthorId},
+		Status:  domain.ArticleStatus(art.Status),
+		CTime:   art.CTime,
+		UTime:   art.UTime,
+	}
 }

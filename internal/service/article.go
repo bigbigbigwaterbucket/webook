@@ -12,12 +12,17 @@ type ArticleService interface {
 	Save(ctx context.Context, article domain.Article) (int64, error)
 	Publish(ctx *gin.Context, art domain.Article) (int64, error)
 	Withdraw(ctx *gin.Context, id int64, uid int64) error
+	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
 }
 
 type ArticleServiceI struct {
 	repo   article.ArticleRepository
 	author article.ArticleAuthorRepository
 	reader article.ArticleReaderRepository
+}
+
+func (a *ArticleServiceI) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
+	return a.repo.List(ctx, uid, offset, limit)
 }
 
 func (a *ArticleServiceI) Withdraw(ctx *gin.Context, id int64, uid int64) error {

@@ -17,10 +17,26 @@ type ArticleDao interface {
 	Sync(ctx context.Context, art Article) (int64, error)
 	UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error)
 	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
+	GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
+}
+
+func (g *GormArticleDao) GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error) {
+	var arts []Article
+	//会自动跳过20行
+	//SELECT * FROM article WHERE author_id=? ORDER BY u_time DESC LIMIT 10 OFFSET 20;
+	//设计order by语句时，最好让order by中的数据命中索引
+	err := g.db.WithContext(ctx).Model(&Article{}).Where("author_id=?", uid).
+		Offset(int(offset)).
+		Limit(int(limit)).
+		//升序排序 u_time ASC
+		//混合 u_time ASC ,xxx DESC
+		Order("u_time DESC").
+		Find(&arts).Error
+	return arts, err
 }
 
 func (g *GormArticleDao) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
