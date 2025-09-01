@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/domain"
+	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao/article"
 )
@@ -19,15 +20,57 @@ type ArticleRepository interface {
 	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
 	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
 	FindById(ctx *gin.Context, aid int64) (domain.Article, error)
+	FindPublishedById(ctx *gin.Context, aid int64) (domain.Article, error)
 }
 
 type CachedArticleRepository struct {
-	dao    article.ArticleDao
+	dao article.ArticleDao
+	//引入同层业务
+	userRepo repository.UserRepository
+
 	author article.AuthorDao
 	reader article.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db    *gorm.DB
 	cache cache.ArticleCache
+}
+
+func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache, userRepo repository.UserRepository) *CachedArticleRepository {
+	return &CachedArticleRepository{dao: dao, cache: cache, userRepo: userRepo}
+}
+
+func (c *CachedArticleRepository) FindPublishedById(ctx *gin.Context, aid int64) (domain.Article, error) {
+	pArtCached, err := c.cache.GetPub(ctx, aid)
+	if err == nil {
+		println("读者命中文章缓存")
+		return pArtCached, err
+	}
+	pArt, err := c.dao.GetPubByArticleId(ctx, aid)
+	if err != nil {
+		return domain.Article{}, err
+	}
+	user, err := c.userRepo.FindById(ctx, pArt.AuthorId)
+	if err != nil {
+		return domain.Article{}, err
+	}
+	//这里缓存可有可无？ 读者的缓存一般在文章Publish之后缓存一段时间
+	//读者阅读这篇文章的时候也缓存
+	res := domain.Article{
+		Id:      pArt.Id,
+		Title:   pArt.Title,
+		Content: pArt.Content,
+		Status:  domain.ArticleStatus(pArt.Status),
+		CTime:   pArt.CTime,
+		UTime:   pArt.UTime,
+		Author:  domain.Author{Id: pArt.AuthorId, Name: user.Name},
+	}
+	go func() {
+		err = c.cache.SetPub(ctx, aid, res)
+		if err != nil {
+			zap.L().Error("读者阅读后缓存失败", zap.Error(err))
+		}
+	}()
+	return res, nil
 }
 
 func (c *CachedArticleRepository) FindById(ctx *gin.Context, aid int64) (domain.Article, error) {
@@ -156,10 +199,25 @@ func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) 
 			zap.L().Error("删除缓存失败", zap.Error(err))
 		}
 	}()
-	return c.dao.Sync(ctx, c.DomainToEntity(art))
-}
-func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache) *CachedArticleRepository {
-	return &CachedArticleRepository{dao: dao, cache: cache}
+	aid, err := c.dao.Sync(ctx, c.DomainToEntity(art))
+	if err != nil {
+		return 0, err
+	}
+	//先判断err，考虑缓存一致性问题，如果数据库没有，那么缓存也应该没有
+	go func() {
+		user, err := c.userRepo.FindById(ctx, art.Author.Id)
+		if err != nil {
+			//找不到user信息，那么后续缓存的信息里也没有user，不能直接用，这里就直接返回了
+			//后续可以在使用缓存的地方检查一下？
+			return
+		}
+		art.Author.Name = user.Name
+		err = c.cache.SetPub(ctx, art.Id, art)
+		if err != nil {
+			zap.L().Error("提前设置新发表文章缓存失败", zap.Error(err))
+		}
+	}()
+	return aid, nil
 }
 
 func (c *CachedArticleRepository) Create(ctx context.Context, art domain.Article) (int64, error) {

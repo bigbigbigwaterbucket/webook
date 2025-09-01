@@ -137,7 +137,7 @@ func main() {
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
 	articleDao := article2.NewGormArticleDao(db)
 	articleCache := cache.NewRedisArticleCache(redisClient)
-	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache)
+	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache, userRepository)
 	articleService := service.NewArticleServiceI(articleRepository)
 
 	//web

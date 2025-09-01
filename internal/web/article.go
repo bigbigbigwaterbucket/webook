@@ -32,6 +32,7 @@ func (a *ArticleHandler) RegisterRouter(engine *gin.Engine) {
 	//创作者的分页查询接口 按照restful规范，应该用GET方法
 	server.POST("/list", ginx.WrapperReqAndToken[ListReq, ijwt.UserClaims](a.List))
 	server.GET("/detail/:id", ginx.WrapperToken[ijwt.UserClaims](a.Detail))
+	server.GET("/pub/:id", ginx.WrapperToken[ijwt.UserClaims](a.PubDetail))
 }
 
 func (a *ArticleHandler) Publish(ctx *gin.Context) {
@@ -115,7 +116,7 @@ func (a *ArticleHandler) Detail(ctx *gin.Context, claim ijwt.UserClaims) (ginx.R
 			Msg:  "参数错误",
 		}, fmt.Errorf("查询文章详情的 ID %s 不正确, %w", id, err)
 	}
-	res, err := a.svc.GetPublishedById(ctx, aid)
+	res, err := a.svc.GetById(ctx, aid)
 	if err != nil {
 		return Result{Msg: "系统错误"}, err
 	}
@@ -132,6 +133,29 @@ func (a *ArticleHandler) Detail(ctx *gin.Context, claim ijwt.UserClaims) (ginx.R
 			Title: res.Title,
 			//Abstract: res.Abstract(),
 			Status:  res.Status.ToUnt8(),
+			Ctime:   res.CTime,
+			Utime:   res.UTime,
+			Content: res.Content,
+		},
+	}, nil
+}
+
+func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Result, error) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return Result{Msg: "系统错误"}, err
+	}
+	res, err := a.svc.GetPublishedById(ctx, id)
+	if err != nil {
+		return Result{Msg: "系统错误"}, err
+	}
+	return Result{
+		Data: ArticleVO{
+			Id:       res.Id,
+			Title:    res.Title,
+			Abstract: res.Abstract(),
+			//Status:   res.Status.ToUnt8(),
 			Ctime:   res.CTime,
 			Utime:   res.UTime,
 			Content: res.Content,

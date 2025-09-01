@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,22 +15,29 @@ type ArticleDao interface {
 	UpdateById(ctx context.Context, art Article) (int64, error)
 	Sync(ctx context.Context, art Article) (int64, error)
 	UpdateOrInsert(ctx context.Context, art PublishArticle) (int64, error)
-	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
-	GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error)
-	GetByArticleId(ctx *gin.Context, aid int64) (Article, error)
+	SyncStatus(ctx context.Context, id int64, uid int64, status uint8) error
+	GetByAuthor(ctx context.Context, uid int64, offset int64, limit int64) ([]Article, error)
+	GetByArticleId(ctx context.Context, aid int64) (Article, error)
+	GetPubByArticleId(ctx context.Context, aid int64) (PublishArticle, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
 }
 
-func (g *GormArticleDao) GetByArticleId(ctx *gin.Context, aid int64) (Article, error) {
+func (g *GormArticleDao) GetPubByArticleId(ctx context.Context, aid int64) (PublishArticle, error) {
+	var pubArt PublishArticle
+	res := g.db.WithContext(ctx).Model(&PublishArticle{}).Where("id=?", aid).First(&pubArt)
+	return pubArt, res.Error
+}
+
+func (g *GormArticleDao) GetByArticleId(ctx context.Context, aid int64) (Article, error) {
 	var art Article
 	res := g.db.WithContext(ctx).Model(&Article{}).Where("id=?", aid).First(&art)
 	return art, res.Error
 }
 
-func (g *GormArticleDao) GetByAuthor(ctx *gin.Context, uid int64, offset int64, limit int64) ([]Article, error) {
+func (g *GormArticleDao) GetByAuthor(ctx context.Context, uid int64, offset int64, limit int64) ([]Article, error) {
 	var arts []Article
 	//会自动跳过20行
 	//SELECT * FROM article WHERE author_id=? ORDER BY u_time DESC LIMIT 10 OFFSET 20;
@@ -46,7 +52,7 @@ func (g *GormArticleDao) GetByAuthor(ctx *gin.Context, uid int64, offset int64, 
 	return arts, err
 }
 
-func (g *GormArticleDao) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
+func (g *GormArticleDao) SyncStatus(ctx context.Context, id int64, uid int64, status uint8) error {
 	err := g.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UnixMilli()
 		res := tx.WithContext(ctx).Model(&Article{}).Where("id = ? and author_id = ?", id, uid).
@@ -103,7 +109,7 @@ func (g *GormArticleDao) UpdateOrInsert(ctx context.Context, art PublishArticle)
 	art.CTime = now
 	art.UTime = now
 	//创建字句，例如where、on duplicate key等等
-	err := g.db.Clauses(clause.OnConflict{
+	err := g.db.WithContext(ctx).Clauses(clause.OnConflict{
 		//字句冲突可选项：
 		//哪些列冲突时触发：
 		//Columns: []clause.Column{clause.Column{Name: "id"}},
