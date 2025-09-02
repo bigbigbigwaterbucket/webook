@@ -5,6 +5,7 @@ import (
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web/ijwt"
@@ -16,11 +17,13 @@ import (
 var _ handler = (*ArticleHandler)(nil)
 
 type ArticleHandler struct {
-	svc service.ArticleService
+	svc      service.ArticleService
+	interSvc service.InteractiveService
+	biz      string
 }
 
-func NewArticleHandler(svc service.ArticleService) *ArticleHandler {
-	return &ArticleHandler{svc: svc}
+func NewArticleHandler(svc service.ArticleService, interSvc service.InteractiveService) *ArticleHandler {
+	return &ArticleHandler{svc: svc, interSvc: interSvc, biz: "article"}
 }
 
 func (a *ArticleHandler) RegisterRouter(engine *gin.Engine) {
@@ -32,7 +35,23 @@ func (a *ArticleHandler) RegisterRouter(engine *gin.Engine) {
 	//创作者的分页查询接口 按照restful规范，应该用GET方法
 	server.POST("/list", ginx.WrapperReqAndToken[ListReq, ijwt.UserClaims](a.List))
 	server.GET("/detail/:id", ginx.WrapperToken[ijwt.UserClaims](a.Detail))
-	server.GET("/pub/:id", ginx.WrapperToken[ijwt.UserClaims](a.PubDetail))
+	pub := server.Group("/pub")
+	pub.GET("/:id", ginx.WrapperToken[ijwt.UserClaims](a.PubDetail))
+	pub.POST("/like", ginx.WrapperReqAndToken[LikeReq, ijwt.UserClaims](a.Like))
+	pub.POST("/collect", ginx.WrapperReqAndToken[CollectReq, ijwt.UserClaims](a.Collect))
+}
+
+func (a *ArticleHandler) Like(ctx *gin.Context, req LikeReq, claim ijwt.UserClaims) (Result, error) {
+	var err error
+	if req.Like {
+		err = a.interSvc.Like(ctx, req.Id, claim.Uid, a.biz)
+	} else {
+		err = a.interSvc.UnLike(ctx, req.Id, claim.Uid, a.biz)
+	}
+	if err != nil {
+		return Result{Msg: "系统错误"}, err
+	}
+	return Result{Msg: "OK"}, nil
 }
 
 func (a *ArticleHandler) Publish(ctx *gin.Context) {
@@ -146,19 +165,60 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 	if err != nil {
 		return Result{Msg: "系统错误"}, err
 	}
-	res, err := a.svc.GetPublishedById(ctx, id)
+	//异步操作，拿到res数据后再操作
+	//开启一个封装了sync.WaitGroup的errGroup，用来等待异步组执行完并进行错误处理
+	var eg errgroup.Group
+	var interactiveData domain.Interactive
+	var res domain.Article
+	//这样异步，io操作等待时是并行等待，总能省下时间
+	eg.Go(func() error {
+		var er error
+		interactiveData, er = a.interSvc.Get(ctx, a.biz, id, claim.Uid)
+		if er != nil {
+			zap.L().Error("文章点赞收藏等信息获取失败")
+			return er
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		res, err = a.svc.GetPublishedById(ctx, id)
+		return err
+	})
+	err = eg.Wait()
 	if err != nil {
 		return Result{Msg: "系统错误"}, err
 	}
+	go func() {
+		er := a.interSvc.IncreaseReadCount(ctx, a.biz, res.Id)
+		if er != nil {
+			zap.L().Error("阅读量增加失败")
+			return
+		}
+		return
+	}()
 	return Result{
 		Data: ArticleVO{
 			Id:       res.Id,
 			Title:    res.Title,
 			Abstract: res.Abstract(),
 			//Status:   res.Status.ToUnt8(),
-			Ctime:   res.CTime,
-			Utime:   res.UTime,
-			Content: res.Content,
+			Ctime:      res.CTime,
+			Utime:      res.UTime,
+			Content:    res.Content,
+			CollectCnt: interactiveData.CollectCnt,
+			LikeCnt:    interactiveData.LikeCnt,
+			ReadCnt:    interactiveData.ReadCnt,
+			Liked:      interactiveData.Liked,
+			Collected:  interactiveData.Collected,
 		},
 	}, nil
+}
+
+func (a *ArticleHandler) Collect(ctx *gin.Context, req CollectReq, claims ijwt.UserClaims) (ginx.Result, error) {
+	//这里就没做取消收藏的功能
+	err := a.interSvc.Collect(ctx, a.biz, req.Id, req.Cid, claims.Uid)
+	if err != nil {
+		return Result{Msg: "系统错误"}, err
+	}
+	return Result{Msg: "OK"}, nil
 }

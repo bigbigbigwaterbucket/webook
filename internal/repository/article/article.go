@@ -3,7 +3,6 @@ package article
 import (
 	"context"
 	"github.com/ecodeclub/ekit/slice"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/domain"
@@ -17,19 +16,18 @@ type ArticleRepository interface {
 	Update(ctx context.Context, article domain.Article) (int64, error)
 	//存储并同步数据
 	Sync(ctx context.Context, article domain.Article) (int64, error)
-	SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error
-	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
-	FindById(ctx *gin.Context, aid int64) (domain.Article, error)
-	FindPublishedById(ctx *gin.Context, aid int64) (domain.Article, error)
+	SyncStatus(ctx context.Context, id int64, uid int64, status uint8) error
+	List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
+	FindById(ctx context.Context, aid int64) (domain.Article, error)
+	FindPublishedById(ctx context.Context, aid int64) (domain.Article, error)
 }
 
 type CachedArticleRepository struct {
 	dao article.ArticleDao
-	//引入同层业务
+	//引入同层业务，实际上同层调用不是好的设计？
 	userRepo repository.UserRepository
-
-	author article.AuthorDao
-	reader article.ReaderDao
+	author   article.AuthorDao
+	reader   article.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db    *gorm.DB
 	cache cache.ArticleCache
@@ -39,7 +37,7 @@ func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache
 	return &CachedArticleRepository{dao: dao, cache: cache, userRepo: userRepo}
 }
 
-func (c *CachedArticleRepository) FindPublishedById(ctx *gin.Context, aid int64) (domain.Article, error) {
+func (c *CachedArticleRepository) FindPublishedById(ctx context.Context, aid int64) (domain.Article, error) {
 	pArtCached, err := c.cache.GetPub(ctx, aid)
 	if err == nil {
 		println("读者命中文章缓存")
@@ -73,7 +71,7 @@ func (c *CachedArticleRepository) FindPublishedById(ctx *gin.Context, aid int64)
 	return res, nil
 }
 
-func (c *CachedArticleRepository) FindById(ctx *gin.Context, aid int64) (domain.Article, error) {
+func (c *CachedArticleRepository) FindById(ctx context.Context, aid int64) (domain.Article, error) {
 	artCached, err := c.cache.Get(ctx, aid)
 	if err == nil {
 		println("list命中第一篇文章缓存")
@@ -86,7 +84,7 @@ func (c *CachedArticleRepository) FindById(ctx *gin.Context, aid int64) (domain.
 	return c.EntityToDomain(art), nil
 }
 
-func (c *CachedArticleRepository) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
+func (c *CachedArticleRepository) List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
 	if offset == 0 && limit <= 100 {
 		data, err := c.cache.GetFirstPage(ctx, uid)
 		//注意这里缓存方法是允许有错误的
@@ -132,7 +130,7 @@ func (c *CachedArticleRepository) preCache(ctx context.Context, data []domain.Ar
 	}
 }
 
-func (c *CachedArticleRepository) SyncStatus(ctx *gin.Context, id int64, uid int64, status uint8) error {
+func (c *CachedArticleRepository) SyncStatus(ctx context.Context, id int64, uid int64, status uint8) error {
 	return c.dao.SyncStatus(ctx, id, uid, status)
 }
 

@@ -139,12 +139,16 @@ func main() {
 	articleCache := cache.NewRedisArticleCache(redisClient)
 	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache, userRepository)
 	articleService := service.NewArticleServiceI(articleRepository)
+	interactiveDao := dao.NewGORMInteractiveDao(db)
+	interactiveCache := cache.NewRedisInteractiveCache(redisClient)
+	interactiveRepository := repository.NewCachedInteractiveRepository(interactiveDao, interactiveCache)
+	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
 
 	//web
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
 	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
-	articleHandler := web.NewArticleHandler(articleService)
+	articleHandler := web.NewArticleHandler(articleService, interactiveService)
 
 	server := gin.Default()
 

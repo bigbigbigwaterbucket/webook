@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository/article"
@@ -10,11 +9,11 @@ import (
 
 type ArticleService interface {
 	Save(ctx context.Context, article domain.Article) (int64, error)
-	Publish(ctx *gin.Context, art domain.Article) (int64, error)
-	Withdraw(ctx *gin.Context, id int64, uid int64) error
-	List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
-	GetById(ctx *gin.Context, aid int64) (domain.Article, error)
-	GetPublishedById(ctx *gin.Context, id int64) (domain.Article, error)
+	Publish(ctx context.Context, art domain.Article) (int64, error)
+	Withdraw(ctx context.Context, id int64, uid int64) error
+	List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
+	GetById(ctx context.Context, aid int64) (domain.Article, error)
+	GetPublishedById(ctx context.Context, id int64) (domain.Article, error)
 }
 
 type ArticleServiceI struct {
@@ -23,31 +22,31 @@ type ArticleServiceI struct {
 	reader article.ArticleReaderRepository
 }
 
-func (a *ArticleServiceI) GetPublishedById(ctx *gin.Context, aid int64) (domain.Article, error) {
+func (a *ArticleServiceI) GetPublishedById(ctx context.Context, aid int64) (domain.Article, error) {
 	return a.repo.FindPublishedById(ctx, aid)
 }
 
-func (a *ArticleServiceI) GetById(ctx *gin.Context, aid int64) (domain.Article, error) {
+func (a *ArticleServiceI) GetById(ctx context.Context, aid int64) (domain.Article, error) {
 	return a.repo.FindById(ctx, aid)
 }
 
-func (a *ArticleServiceI) List(ctx *gin.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
+func (a *ArticleServiceI) List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error) {
 	return a.repo.List(ctx, uid, offset, limit)
 }
 
-func (a *ArticleServiceI) Withdraw(ctx *gin.Context, id int64, uid int64) error {
+func (a *ArticleServiceI) Withdraw(ctx context.Context, id int64, uid int64) error {
 	return a.repo.SyncStatus(ctx, id, uid, domain.ArticleStatusPrivate.ToUnt8())
 }
 
 // 最终放在dao层处理事务的版本（同库不同表
-func (a *ArticleServiceI) Publish(ctx *gin.Context, art domain.Article) (int64, error) {
+func (a *ArticleServiceI) Publish(ctx context.Context, art domain.Article) (int64, error) {
 	art.Status = domain.ArticleStatusPublished
 	id, err := a.repo.Sync(ctx, art)
 	return id, err
 }
 
 // 在service层“尝试”处理事务（一般用来处理分布式事务
-func (a *ArticleServiceI) PublishV0(ctx *gin.Context, art domain.Article) error {
+func (a *ArticleServiceI) PublishV0(ctx context.Context, art domain.Article) error {
 	var (
 		aid int64
 		err error

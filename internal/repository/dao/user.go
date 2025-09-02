@@ -14,7 +14,7 @@ var (
 	//	println(a)  使用var声明变量时，不需要:=，:=只能用于函数内部
 	ErrUserDuplicate = errors.New("邮箱冲突")
 	//用的就是db的where的error，不用新建
-	ErrUserNotFound = gorm.ErrRecordNotFound
+	ErrNotFound = gorm.ErrRecordNotFound
 )
 
 type GormUserDAO struct {
