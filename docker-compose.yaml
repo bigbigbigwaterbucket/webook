@@ -37,16 +37,33 @@ services:
     ports:
       - "27017:27017"
 
-  # 为mongoDB提供一个web界面，用于在浏览器内管理和查看mongoDB
-  mongo-express:
-    image: mongo-express:1.0.2-20-alpine3.19
+  kafka:
+    image: 'bitnami/kafka:3.6.0'
     ports:
-      - "18081:8081"
-    restart: always
+      - '9092:9092'
+      - '9094:9094'
     environment:
-      # web界面的用户名
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      # 密码
-      ME_CONFIG_MONGODB_ADMINPASSWORD: example
-      # 连接到docker内部的mongoDB服务
-      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      - KAFKA_CFG_NODE_ID=0
+      #      - 允许自动创建 topic，线上不要开启，创建太多topic会对性能产生影响
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      # EXTERNAL配置docker-compose外连接kafka的端口，PLAINTEXT配置docker-compose内连接kafka的端口
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+
+#  # 为mongoDB提供一个web界面，用于在浏览器内管理和查看mongoDB
+#  mongo-express:
+#    image: mongo-express:1.0.2-20-alpine3.19
+#    ports:
+#      - "18081:8081"
+#    restart: always
+#    environment:
+#      # web界面的用户名
+#      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+#      # 密码
+#      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+#      # 连接到docker内部的mongoDB服务
+#      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
