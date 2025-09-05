@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"time"
@@ -15,10 +16,27 @@ type InteractiveDao interface {
 	GetThreeByDao(ctx context.Context, biz string, bizId int64) (Interactive, error)
 	GetLikeInfo(ctx context.Context, biz string, bizId int64, uid int64) (UserLikeBiz, error)
 	GetCollectInfo(ctx context.Context, biz string, bizId int64, uid int64) (UserCollectionBiz, error)
+	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
 }
 
 type GORMInteractiveDao struct {
 	db *gorm.DB
+}
+
+func (G *GORMInteractiveDao) IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error {
+	return G.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dao := NewGORMInteractiveDao(tx)
+		// 还是让调用者保证两者是相等的
+		zap.L().Info("批量处理信息数", zap.Int("num:", len(aids)))
+		for i := 0; i < len(aids); i++ {
+			err := dao.IncreaseReadCount(ctx, bizs[i], aids[i])
+			if err != nil {
+				zap.L().Error("批量增加阅读量失败", zap.Int64("aid", aids[i]))
+				continue
+			}
+		}
+		return nil
+	})
 }
 
 func (G *GORMInteractiveDao) GetCollectInfo(ctx context.Context, biz string, bizId int64, uid int64) (UserCollectionBiz, error) {

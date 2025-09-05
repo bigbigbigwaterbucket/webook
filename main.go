@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/IBM/sarama"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
@@ -16,6 +17,7 @@ import (
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
 	"learning_go/webook/internal/config"
+	articleEvent "learning_go/webook/internal/events/article"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/cache"
@@ -144,6 +146,18 @@ func main() {
 	interactiveRepository := repository.NewCachedInteractiveRepository(interactiveDao, interactiveCache)
 	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
 
+	//consumer
+	var address = []string{"localhost:9094"}
+	saramaConfig := sarama.NewConfig()
+	client, err := sarama.NewClient(address, saramaConfig)
+	if err != nil {
+		panic(err)
+	}
+	interactiveConsumer := articleEvent.NewInteractiveReadEventBatchConsumer(client, interactiveRepository)
+	err = interactiveConsumer.Start()
+	if err != nil {
+		panic(err)
+	}
 	//web
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)

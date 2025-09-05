@@ -16,11 +16,16 @@ type InteractiveRepository interface {
 	GetThree(ctx context.Context, biz string, bizId int64) (domain.Interactive, error)
 	Liked(ctx context.Context, biz string, bizId int64, uid int64) (bool, error)
 	Collected(ctx context.Context, biz string, bizId int64, uid int64) (bool, error)
+	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
 }
 
 type CachedInteractiveRepository struct {
 	dao   dao.InteractiveDao
 	cache cache.InteractiveCache
+}
+
+func (c *CachedInteractiveRepository) IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error {
+	return c.dao.IncreaseReadCountN(ctx, bizs, aids)
 }
 
 func (c *CachedInteractiveRepository) Liked(ctx context.Context, biz string, bizId int64, uid int64) (bool, error) {
