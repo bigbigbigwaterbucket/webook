@@ -8,6 +8,8 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	redisv9 "github.com/redis/go-redis/v9"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -16,6 +18,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
+	gormPrometheus "gorm.io/plugin/prometheus"
 	"learning_go/webook/internal/config"
 	articleEvent "learning_go/webook/internal/events/article"
 	"learning_go/webook/internal/repository"
@@ -29,9 +32,10 @@ import (
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/internal/web/middleware"
-	"learning_go/webook/pkg/ginx/middleware/logger"
+	"learning_go/webook/pkg/ginx/middleware/metrics"
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -92,12 +96,21 @@ func initLogger() {
 	zap.L().Info("日志载入成功")
 }
 
+func initPrometheus() {
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		err := http.ListenAndServe(":8085", nil)
+		zap.L().Error("err", zap.Error(err))
+	}()
+}
+
 func main() {
 	type Config struct {
 		DSN string `yaml:"dsn"` //反序列化读进来的，注意大写
 	}
 	initLogger()
 	initViper()
+	initPrometheus()
 	//initViperRemote()
 	var config1 Config
 	//远程链接etcd时，viper不支持对yaml文件分隔符.的解析！！！
@@ -163,21 +176,63 @@ func main() {
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
 	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
 	articleHandler := web.NewArticleHandler(articleService, interactiveService)
+	// 用来测试prometheus的观测功能的接口，方便给wrk压测
+	observeHandler := web.NewObservabilityHandler()
 
 	server := gin.Default()
 
 	//middleware也是一种handlerFunc，但是一种AOP的handlerFunc,相当于server的所有的路由都会经过
 	//Use函数接收不定个func(*context)类型
-	server.Use(func(ctx *gin.Context) {
-		//println(ctx.GetHeader("Origin"))
-		println("这是第一个 middleware")
-	})
-	server.Use(func(ctx *gin.Context) {
-		println("这是第二个 middleware")
-	})
-	server.Use(logger.NewLoggerBuilder(func(ctx *gin.Context, log *logger.AccessLog) {
-		zap.L().Debug("请求与响应信息", zap.Any("请求与响应", log))
-	}).AllowRespBody().AllowReqBody().Build())
+
+	//server.Use(func(ctx *gin.Context) {
+	//	//println(ctx.GetHeader("Origin"))
+	//	println("这是第一个 middleware")
+	//})
+	//server.Use(func(ctx *gin.Context) {
+	//	println("这是第二个 middleware")
+	//})
+
+	//先暂时注释掉，否则prometheus会请求大量信息导致输出大量日志
+	//server.Use(logger.NewLoggerBuilder(func(ctx *gin.Context, log *logger.AccessLog) {
+	//	zap.L().Debug("请求与响应信息", zap.Any("请求与响应", log))
+	//}).AllowRespBody().AllowReqBody().Build())
+
+	server.Use((&metrics.MiddleWareBuilder{Namespace: "waterbucket", Subsystem: "webook", //这里不要用连字符，会报错
+		Name: "gin_web", Help: "统计gin的http接口响应时间", InstanceID: "localhost:8080"}).Builder())
+	err = db.Use(gormPrometheus.New(gormPrometheus.Config{
+		DBName:          "webook",
+		RefreshInterval: 15,    //拉取间隔
+		StartServer:     false, //已经开启prometheus的handler了，不需要重新开启服务
+		MetricsCollector: []gormPrometheus.MetricsCollector{
+			&gormPrometheus.MySQL{
+				VariableNames: []string{"thread_running"}, //不知道啥意思，大明也不懂
+			},
+		},
+	}))
+	if err != nil {
+		panic(err)
+	}
+
+	sqlVector := prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: "waterbucket",
+		Subsystem: "webook",
+		Name:      "gorm_query_time",
+		Objectives: map[float64]float64{
+			0.5:  0.01,
+			0.75: 0.01,
+			0.9:  0.005,
+			0.99: 0.001,
+		},
+		//table方便定位不同表的查询用时
+		//type方便定位是insert语句还是其他语句
+		//如果是join语句，可以按主表A join B的A来，也可以合在一起传
+	}, []string{"type", "table"})
+	//定义好指标后别忘记注册！
+	prometheus.MustRegister(sqlVector)
+
+	//callbacks集中使用gorm的callback机制注册prometheus summary分位数指标
+	callbacks := Callbacks{SqlVector: sqlVector}
+	callbacks.initCallbacks(db)
 
 	redisLimiter := ratelimit.NewRedisSlidingWindow(redisClient, 100, time.Second)
 	//web服务限流为一分钟100次
@@ -225,13 +280,91 @@ func main() {
 		AddHPath("/oauth2/wechat/authurl").
 		AddHPath("/oauth2/wechat/callback").
 		AddHPath("/users/refresh_token").
+		AddHPath("/test/metric").
 		Build())
 
 	userHandler.RegisterRouter(server)
 	wechatHandler.RegisterRouter(server)
 	articleHandler.RegisterRouter(server)
+	observeHandler.RegisterRoutes(server)
 
 	err = server.Run(":8080")
+}
+
+type Callbacks struct {
+	SqlVector *prometheus.SummaryVec
+}
+
+func (c *Callbacks) initCallbacks(db *gorm.DB) {
+	//callback会在执行sql语句前后调用，也可以用gorm的hook机制
+	//作用于insert语句，在所有callback函数之前
+	err := db.Callback().Create().Before("*").Register("prometheus_create_before", c.before())
+	if err != nil {
+		panic(err)
+	}
+	err = db.Callback().Create().After("*").Register("prometheus_create_after", c.after("create"))
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Callback().Delete().Before("*").Register("prometheus_delete_before", c.before())
+	if err != nil {
+		panic(err)
+	}
+	err = db.Callback().Delete().After("*").Register("prometheus_delete_after", c.after("delete"))
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Callback().Query().Before("*").Register("prometheus_query_before", c.before())
+	if err != nil {
+		panic(err)
+	}
+	err = db.Callback().Query().After("*").Register("prometheus_query_after", c.after("query"))
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Callback().Raw().Before("*").Register("prometheus_raw_before", c.before())
+	if err != nil {
+		panic(err)
+	}
+	err = db.Callback().Raw().After("*").Register("prometheus_raw_after", c.after("raw"))
+	if err != nil {
+		panic(err)
+	}
+
+	err = db.Callback().Row().Before("*").Register("prometheus_row_before", c.before())
+	if err != nil {
+		panic(err)
+	}
+	err = db.Callback().Row().After("*").Register("prometheus_row_after", c.after("row"))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (c *Callbacks) before() func(db *gorm.DB) {
+	return func(db *gorm.DB) {
+		//相当于ctx存储元数据，你也可以用statement的ctx
+		db.Set("start_time", time.Now())
+	}
+}
+
+func (c *Callbacks) after(typ string) func(db *gorm.DB) {
+	return func(db *gorm.DB) {
+		data, _ := db.Get("start_time")
+		startTime, ok := data.(time.Time)
+		if !ok {
+			return
+		}
+		table := db.Statement.Table
+		if table == "" {
+			table = "unknown"
+		}
+		//拿到表名
+		c.SqlVector.WithLabelValues(typ, table).Observe(float64(time.Since(startTime).Milliseconds()))
+	}
 }
 
 type gormLoggerFunc func(msg string, fileds ...zap.Field)

@@ -1,0 +1,6 @@
+scrape_configs:
+  - job_name: "webook"  # 项目名
+    scrape_interval: 5s # 拉取间隔
+    scrape_timeout: 3s
+    static_configs:
+      - targets: ["host.docker.internal:8085"] # 访问docker外的8085端口（webook服务
