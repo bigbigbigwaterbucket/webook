@@ -32,9 +32,11 @@ import (
 	"learning_go/webook/internal/web"
 	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/internal/web/middleware"
+	"learning_go/webook/pkg/ginx"
 	"learning_go/webook/pkg/ginx/middleware/metrics"
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
+	"learning_go/webook/pkg/redisx"
 	"net/http"
 	"strings"
 	"time"
@@ -156,7 +158,7 @@ func main() {
 	articleService := service.NewArticleServiceI(articleRepository)
 	interactiveDao := dao.NewGORMInteractiveDao(db)
 	interactiveCache := cache.NewRedisInteractiveCache(redisClient)
-	interactiveRepository := repository.NewCachedInteractiveRepository(interactiveDao, interactiveCache)
+	interactiveRepository := repository.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
 	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
 
 	//consumer
@@ -197,8 +199,25 @@ func main() {
 	//	zap.L().Debug("请求与响应信息", zap.Any("请求与响应", log))
 	//}).AllowRespBody().AllowReqBody().Build())
 
+	redisClient.AddHook(redisx.NewPrometheusHook(prometheus.SummaryOpts{
+		Namespace: "waterbucket", Subsystem: "webook",
+		Name: "redis", Help: "redis执行时间检测与是否命中检测",
+		Objectives: map[float64]float64{
+			0.5:  0.01,
+			0.75: 0.01,
+			0.9:  0.005,
+			0.99: 0.001,
+		},
+	}))
+
+	ginx.InitOpt(prometheus.CounterOpts{
+		Namespace: "waterbucket", Subsystem: "webook",
+		Name: "gin_web", Help: "在wrapper封装的路由函数中统计http的业务错误码",
+	})
+
 	server.Use((&metrics.MiddleWareBuilder{Namespace: "waterbucket", Subsystem: "webook", //这里不要用连字符，会报错
 		Name: "gin_web", Help: "统计gin的http接口响应时间", InstanceID: "localhost:8080"}).Builder())
+
 	err = db.Use(gormPrometheus.New(gormPrometheus.Config{
 		DBName:          "webook",
 		RefreshInterval: 15,    //拉取间隔

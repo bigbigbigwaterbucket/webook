@@ -41,3 +41,7 @@ type CollectReq struct {
 	//标记收藏在哪个收藏夹里
 	Cid int64 `json:"cid"`
 }
+
+type TopReq struct {
+	TopNum int64 `json:"topNums"`
+}

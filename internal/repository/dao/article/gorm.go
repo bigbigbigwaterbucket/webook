@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"learning_go/webook/internal/domain"
 	"time"
 )
 
@@ -19,10 +20,20 @@ type ArticleDao interface {
 	GetByAuthor(ctx context.Context, uid int64, offset int64, limit int64) ([]Article, error)
 	GetByArticleId(ctx context.Context, aid int64) (Article, error)
 	GetPubByArticleId(ctx context.Context, aid int64) (PublishArticle, error)
+	GetByArticleIds(ctx context.Context, aids []int64) ([]Article, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
+}
+
+func (g *GormArticleDao) GetByArticleIds(ctx context.Context, aids []int64) ([]Article, error) {
+	var articles []Article
+	err := g.db.WithContext(ctx).Model(domain.Article{}).Where("id in ?", aids).Find(&articles).Error
+	if err != nil {
+		return []Article{}, nil
+	}
+	return articles, err
 }
 
 func (g *GormArticleDao) GetPubByArticleId(ctx context.Context, aid int64) (PublishArticle, error) {

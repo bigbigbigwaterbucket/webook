@@ -17,10 +17,18 @@ type InteractiveDao interface {
 	GetLikeInfo(ctx context.Context, biz string, bizId int64, uid int64) (UserLikeBiz, error)
 	GetCollectInfo(ctx context.Context, biz string, bizId int64, uid int64) (UserCollectionBiz, error)
 	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
+	FindLikeTop(ctx context.Context, biz string, topNum int64) ([]Interactive, error)
 }
 
 type GORMInteractiveDao struct {
 	db *gorm.DB
+}
+
+func (G *GORMInteractiveDao) FindLikeTop(ctx context.Context, biz string, topNum int64) ([]Interactive, error) {
+	var interactives []Interactive
+	//limit语句是最多取x条
+	res := G.db.WithContext(ctx).Model(&Interactive{}).Where("biz = ?", biz).Order("like_cnt desc").Limit(int(topNum * 10)).Find(&interactives)
+	return interactives, res.Error
 }
 
 func (G *GORMInteractiveDao) IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error {

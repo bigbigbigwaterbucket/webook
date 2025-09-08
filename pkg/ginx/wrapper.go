@@ -3,9 +3,19 @@ package ginx
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"net/http"
+	"strconv"
 )
+
+var vector *prometheus.CounterVec
+
+func InitOpt(opt prometheus.CounterOpts) {
+	vector = prometheus.NewCounterVec(opt, []string{"code"})
+	prometheus.MustRegister(vector)
+	//这里还可以用method、命中路由、状态码等等，code是你自定义的业务错误码，方便你自己定位错误
+}
 
 func WrapperReqAndToken[Req any, C jwt.Claims](handler func(*gin.Context, Req, C) (Result, error)) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
@@ -22,6 +32,7 @@ func WrapperReqAndToken[Req any, C jwt.Claims](handler func(*gin.Context, Req, C
 			return
 		}
 		res, err := handler(ctx, req, cReal)
+		vector.WithLabelValues(strconv.Itoa(res.Code)).Inc()
 		if err != nil {
 			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
 		}

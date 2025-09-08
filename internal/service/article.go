@@ -14,12 +14,17 @@ type ArticleService interface {
 	List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
 	GetById(ctx context.Context, aid int64) (domain.Article, error)
 	GetPublishedById(ctx context.Context, id int64) (domain.Article, error)
+	GetByIds(ctx context.Context, aids []int64) ([]domain.Article, error)
 }
 
 type ArticleServiceI struct {
 	repo   article.ArticleRepository
 	author article.ArticleAuthorRepository
 	reader article.ArticleReaderRepository
+}
+
+func (a *ArticleServiceI) GetByIds(ctx context.Context, aids []int64) ([]domain.Article, error) {
+	return a.repo.FindByIds(ctx, aids)
 }
 
 func (a *ArticleServiceI) GetPublishedById(ctx context.Context, aid int64) (domain.Article, error) {

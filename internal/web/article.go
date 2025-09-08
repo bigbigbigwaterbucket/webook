@@ -39,6 +39,51 @@ func (a *ArticleHandler) RegisterRouter(engine *gin.Engine) {
 	pub.GET("/:id", ginx.WrapperToken[ijwt.UserClaims](a.PubDetail))
 	pub.POST("/like", ginx.WrapperReqAndToken[LikeReq, ijwt.UserClaims](a.Like))
 	pub.POST("/collect", ginx.WrapperReqAndToken[CollectReq, ijwt.UserClaims](a.Collect))
+	pub.POST("/:top", a.GetTop)
+}
+
+func (a *ArticleHandler) GetTop(ctx *gin.Context) {
+	//没必要定义请求结构体，get请求，想统计什么top直接从路由参数那拿就可以
+	var err error
+	var req TopReq
+	var topData []domain.Interactive
+	var articles []domain.Article
+	top := ctx.Param("top")
+	err = ctx.Bind(&req)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+		return
+	}
+	switch top {
+	case "liketop":
+		//这里拿到的数据已经被减少过了
+		topData, err = a.interSvc.GetLikeTop(ctx, a.biz, req.TopNum)
+		if err != nil {
+			ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+			return
+		}
+		ids := slice.Map[domain.Interactive, int64](topData, func(idx int, src domain.Interactive) int64 {
+			return src.BizId
+		})
+		articles, err = a.svc.GetByIds(ctx, ids)
+		ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: slice.Map[domain.Article, ArticleVO](articles, func(idx int, src domain.Article) ArticleVO {
+			return ArticleVO{
+				Id:    src.Id,
+				Title: src.Title,
+				//Abstract: res.Abstract(),
+				Status:  src.Status.ToUnt8(),
+				Ctime:   src.CTime,
+				Utime:   src.UTime,
+				Content: src.Content,
+			}
+		}),
+		})
+	default:
+		//前端传错了或者有人乱发
+		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+		return
+	}
+
 }
 
 func (a *ArticleHandler) Like(ctx *gin.Context, req LikeReq, claim ijwt.UserClaims) (Result, error) {

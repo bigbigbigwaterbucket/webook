@@ -20,6 +20,7 @@ type ArticleRepository interface {
 	List(ctx context.Context, uid int64, offset int64, limit int64) ([]domain.Article, error)
 	FindById(ctx context.Context, aid int64) (domain.Article, error)
 	FindPublishedById(ctx context.Context, aid int64) (domain.Article, error)
+	FindByIds(ctx context.Context, aids []int64) ([]domain.Article, error)
 }
 
 type CachedArticleRepository struct {
@@ -31,6 +32,11 @@ type CachedArticleRepository struct {
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db    *gorm.DB
 	cache cache.ArticleCache
+}
+
+func (c *CachedArticleRepository) FindByIds(ctx context.Context, aids []int64) ([]domain.Article, error) {
+	data, err := c.dao.GetByArticleIds(ctx, aids)
+	return c.EntitysToDomains(data), err
 }
 
 func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache, userRepo repository.UserRepository) *CachedArticleRepository {
@@ -259,4 +265,10 @@ func (c *CachedArticleRepository) EntityToDomain(art article.Article) domain.Art
 		CTime:   art.CTime,
 		UTime:   art.UTime,
 	}
+}
+
+func (c *CachedArticleRepository) EntitysToDomains(articles []article.Article) []domain.Article {
+	return slice.Map[article.Article, domain.Article](articles, func(idx int, src article.Article) domain.Article {
+		return c.EntityToDomain(src)
+	})
 }

@@ -13,9 +13,14 @@ type InteractiveService interface {
 	UnLike(ctx context.Context, aid int64, uid int64, biz string) error
 	Get(ctx context.Context, biz string, bizId int64, uid int64) (domain.Interactive, error)
 	Collect(ctx context.Context, biz string, bizId int64, cid int64, uid int64) error
+	GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error)
 }
 type InteractiveServiceI struct {
 	repo repository.InteractiveRepository
+}
+
+func (i *InteractiveServiceI) GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error) {
+	return i.repo.GetLikeTop(ctx, biz, topNum)
 }
 
 func (i *InteractiveServiceI) Get(ctx context.Context, biz string, bizId int64, uid int64) (domain.Interactive, error) {
