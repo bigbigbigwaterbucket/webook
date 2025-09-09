@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/IBM/sarama"
 	"github.com/fsnotify/fsnotify"
@@ -14,6 +15,8 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	_ "github.com/spf13/viper/remote"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -106,12 +109,34 @@ func initPrometheus() {
 	}()
 }
 
+func initOpenTelemetry() func(ctx context.Context) {
+	//当前服务的资源
+	res, err := newResource("webook", "v0.0.1")
+	if err != nil {
+		panic(err)
+	}
+	//上下文配置
+	prop := newPropagator()
+	otel.SetTextMapPropagator(prop)
+	//追踪trace，使用zipkin
+	tp, err := newTraceProvider(res)
+	if err != nil {
+		panic(err)
+	}
+	otel.SetTracerProvider(tp)
+	//退出追踪，闭包函数
+	return func(ctx context.Context) {
+		tp.Shutdown(ctx)
+	}
+}
+
 func main() {
 	type Config struct {
 		DSN string `yaml:"dsn"` //反序列化读进来的，注意大写
 	}
 	initLogger()
 	initViper()
+	closeFunc := initOpenTelemetry()
 	initPrometheus()
 	//initViperRemote()
 	var config1 Config
@@ -218,6 +243,7 @@ func main() {
 	server.Use((&metrics.MiddleWareBuilder{Namespace: "waterbucket", Subsystem: "webook", //这里不要用连字符，会报错
 		Name: "gin_web", Help: "统计gin的http接口响应时间", InstanceID: "localhost:8080"}).Builder())
 
+	//这里提供的接口是去检测sql的一些指标
 	err = db.Use(gormPrometheus.New(gormPrometheus.Config{
 		DBName:          "webook",
 		RefreshInterval: 15,    //拉取间隔
@@ -302,12 +328,23 @@ func main() {
 		AddHPath("/test/metric").
 		Build())
 
+	//注册openTelemetry，监控traces
+	server.Use(otelgin.Middleware("webook"))
 	userHandler.RegisterRouter(server)
 	wechatHandler.RegisterRouter(server)
 	articleHandler.RegisterRouter(server)
 	observeHandler.RegisterRoutes(server)
 
+	//放在注册路由后面的midleware不会生效！！！
+	server.Use(func(ctx *gin.Context) {
+		println("这是第二个 middleware")
+	})
+	//run之后会被阻塞，一般都写在这之前
 	err = server.Run(":8080")
+	//关闭trace也要限时，牢记谁创建的ctx谁来关，防止有人在等
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	closeFunc(ctx)
 }
 
 type Callbacks struct {
