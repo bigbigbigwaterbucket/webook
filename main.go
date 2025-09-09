@@ -256,7 +256,6 @@ func main() {
 	}))
 	if err != nil {
 		panic(err)
-
 	}
 
 	sqlVector := prometheus.NewSummaryVec(prometheus.SummaryOpts{
