@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=D:/go_project/learning_go/webook/internal/repository/interactive.go -package=repomocks -destination=D:/go_project/learning_go/webook/internal/repository/mocks/interactive_mocks.go
 type InteractiveDao interface {
 	IncreaseReadCount(ctx context.Context, biz string, bizId int64) error
 	IncreaseLikeCnt(ctx context.Context, biz string, bizId int64, uid int64) error

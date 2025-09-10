@@ -20,6 +20,7 @@ type InteractiveRepository interface {
 	Collected(ctx context.Context, biz string, bizId int64, uid int64) (bool, error)
 	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
 	GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error)
+	GetByIds(ctx context.Context, ids []int64) (map[int64]domain.Interactive, error)
 }
 
 type CachedInteractiveRepository struct {

@@ -11,6 +11,7 @@ import (
 	"learning_go/webook/internal/repository/dao/article"
 )
 
+//go:generate mockgen -source=D:/go_project/learning_go/webook/internal/repository/article/article.go -package=repomocks -destination=D:/go_project/learning_go/webook/internal/repository/article/mocks/article_mocks.go
 type ArticleRepository interface {
 	Create(ctx context.Context, art domain.Article) (int64, error)
 	Update(ctx context.Context, article domain.Article) (int64, error)
@@ -21,6 +22,7 @@ type ArticleRepository interface {
 	FindById(ctx context.Context, aid int64) (domain.Article, error)
 	FindPublishedById(ctx context.Context, aid int64) (domain.Article, error)
 	FindByIds(ctx context.Context, aids []int64) ([]domain.Article, error)
+	GetRankingList(ctx context.Context, offset int, topNum int) ([]domain.Article, error)
 }
 
 type CachedArticleRepository struct {
