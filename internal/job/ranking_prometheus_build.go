@@ -35,7 +35,7 @@ func NewPrometheusJobBuilder() *PrometheusJobBuilder {
 // builder模式结构体需要传递新增成员，被build对象作为函数参数传进来/返回
 func (p *PrometheusJobBuilder) Build(job Job) CronJobFunc {
 	name := job.Name()
-	return func() {
+	return func() error {
 		var success bool
 		start := time.Now()
 		zap.L().Info("cron_job开始执行", zap.String("name", name))
@@ -52,10 +52,11 @@ func (p *PrometheusJobBuilder) Build(job Job) CronJobFunc {
 		if err != nil {
 			zap.L().Error("cron_job执行失败", zap.String("name", name))
 		}
+		return nil
 	}
 }
 
-type CronJobFunc func()
+type CronJobFunc func() error
 
 func (f CronJobFunc) Run() {
 	_ = f()
