@@ -41,7 +41,8 @@ func (b *Builder) Build() gin.HandlerFunc {
 			ctx.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}
-		ctx.Next() //如果没被限流，把控制权交给下一个中间件或路由处理函数
+		ctx.Next() //如果没被限流，把控制权交给下一个"中间件"或路由处理函数
+		//gin独有
 	}
 }
 

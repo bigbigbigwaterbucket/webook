@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	redisv9 "github.com/redis/go-redis/v9"
+	cron2 "github.com/robfig/cron/v3"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	_ "github.com/spf13/viper/remote"
@@ -24,6 +25,7 @@ import (
 	gormPrometheus "gorm.io/plugin/prometheus"
 	"learning_go/webook/internal/config"
 	articleEvent "learning_go/webook/internal/events/article"
+	job2 "learning_go/webook/internal/job"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/cache"
@@ -185,6 +187,9 @@ func main() {
 	interactiveCache := cache.NewRedisInteractiveCache(redisClient)
 	interactiveRepository := repository.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
 	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
+	rankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
+	rankingRepo := repository.NewOnlyCachedRankingRepository(rankingCache)
+	rankingService := service.NewRankingServiceI(articleRepository, interactiveRepository, rankingRepo)
 
 	//consumer
 	var address = []string{"localhost:9094"}
@@ -279,7 +284,7 @@ func main() {
 	callbacks := Callbacks{SqlVector: sqlVector}
 	callbacks.initCallbacks(db)
 
-	redisLimiter := ratelimit.NewRedisSlidingWindow(redisClient, 100, time.Second)
+	redisLimiter := ratelimit.NewRedisSlidingWindow(redisClient, 1000, time.Second)
 	//web服务限流为一分钟100次
 	server.Use(webratelimit.NewBuilder(redisLimiter).Build())
 	//只会对cors 跨域请求进行限制，postman不会限制？  这里配置的内容就是preflight响应体返回的内容
@@ -326,6 +331,7 @@ func main() {
 		AddHPath("/oauth2/wechat/callback").
 		AddHPath("/users/refresh_token").
 		AddHPath("/test/metric").
+		AddHPath("/articles/pub/liketop").
 		Build())
 
 	//注册openTelemetry，监控traces
@@ -334,6 +340,17 @@ func main() {
 	wechatHandler.RegisterRouter(server)
 	articleHandler.RegisterRouter(server)
 	observeHandler.RegisterRoutes(server)
+
+	//注册定时任务
+	expr := cron2.New()
+	//一次分批查询的总时长为60s，取决于近七天的数据量
+	job := job2.NewPrometheusJobBuilder().Build(job2.NewRankingJob(rankingService, time.Minute))
+	//每三分钟一次
+	_, err = expr.AddJob("0 */3 * * * ?", job)
+	if err != nil {
+		panic(err)
+	}
+	expr.Start()
 
 	//放在注册路由后面的midleware不会生效！！！
 	server.Use(func(ctx *gin.Context) {
@@ -344,7 +361,15 @@ func main() {
 	//关闭trace也要限时，牢记谁创建的ctx谁来关，防止有人在等
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	closeFunc(ctx)
+	closeFunc(ctx) //关闭trace
+	//结束job定时任务
+	ctx2 := expr.Stop()
+	tm := time.NewTimer(time.Minute * 10)
+	//防止stop信号关不掉goroutine，这里强制定时关闭
+	select {
+	case <-tm.C:
+	case <-ctx2.Done():
+	}
 }
 
 type Callbacks struct {

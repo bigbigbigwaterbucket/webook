@@ -20,7 +20,7 @@ type InteractiveRepository interface {
 	Collected(ctx context.Context, biz string, bizId int64, uid int64) (bool, error)
 	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
 	GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error)
-	GetByIds(ctx context.Context, ids []int64) (map[int64]domain.Interactive, error)
+	GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error)
 }
 
 type CachedInteractiveRepository struct {
@@ -28,6 +28,11 @@ type CachedInteractiveRepository struct {
 	topLast     time.Time     //top数据上一次缓存时间
 	dao         dao.InteractiveDao
 	cache       cache.InteractiveCache
+}
+
+func (c *CachedInteractiveRepository) GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func NewCachedInteractiveRepository(topDuration time.Duration, dao dao.InteractiveDao, cache cache.InteractiveCache) *CachedInteractiveRepository {
@@ -46,6 +51,11 @@ func (c *CachedInteractiveRepository) GetLikeTop(ctx context.Context, biz string
 		//失败？重试吧
 		err = c.cache.SetLikeTop(ctx, biz, topNum, topData)
 		//别忘记更新缓存时间和减少数据量
+		//注意可能没有topNum个数据，你要做判断！
+		if len(topData) < int(topNum) {
+			c.topLast = time.Now()
+			return topData, err
+		}
 		topData = topData[:topNum]
 		c.topLast = time.Now()
 	} else {

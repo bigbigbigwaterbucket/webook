@@ -7,7 +7,6 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"learning_go/webook/internal/domain"
 	"time"
 )
 
@@ -21,15 +20,24 @@ type ArticleDao interface {
 	GetByArticleId(ctx context.Context, aid int64) (Article, error)
 	GetPubByArticleId(ctx context.Context, aid int64) (PublishArticle, error)
 	GetByArticleIds(ctx context.Context, aids []int64) ([]Article, error)
+	GetRankingList(ctx context.Context, startTime time.Time, offset int, topNum int) ([]Article, error)
 }
 
 type GormArticleDao struct {
 	db *gorm.DB
 }
 
+func (g *GormArticleDao) GetRankingList(ctx context.Context, startTime time.Time, offset int, topNum int) ([]Article, error) {
+	var res []Article
+	//按更新时间降序排列，保证取的数据不会重复
+	err := g.db.WithContext(ctx).Model(Article{}).Where("u_time < ?", startTime.UnixMilli()).Order("u_time desc").
+		Offset(offset).Limit(topNum).Find(&res).Error //有offset关键字可以直接用
+	return res, err
+}
+
 func (g *GormArticleDao) GetByArticleIds(ctx context.Context, aids []int64) ([]Article, error) {
 	var articles []Article
-	err := g.db.WithContext(ctx).Model(domain.Article{}).Where("id in ?", aids).Find(&articles).Error
+	err := g.db.WithContext(ctx).Model(Article{}).Where("id in ?", aids).Find(&articles).Error
 	if err != nil {
 		return []Article{}, nil
 	}

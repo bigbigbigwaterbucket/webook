@@ -43,6 +43,7 @@ func (r *RankingServiceI) TopN(ctx context.Context) error {
 }
 
 func (r *RankingServiceI) topN(ctx context.Context) ([]domain.Article, error) {
+	now := time.Now()
 	type Score struct {
 		art   domain.Article
 		score float64
@@ -60,14 +61,15 @@ func (r *RankingServiceI) topN(ctx context.Context) ([]domain.Article, error) {
 	})
 	offset := 0
 	for {
-		arts, err := r.articleRepo.GetRankingList(ctx, offset, r.batchSize)
+		//传入startTime，防止分批查询之间插入新数据，导致取出重复的热点数据
+		arts, err := r.articleRepo.GetRankingList(ctx, now, offset, r.batchSize)
 		if err != nil {
 			return []domain.Article{}, err
 		}
 		ids := slice.Map[domain.Article, int64](arts, func(idx int, src domain.Article) int64 {
 			return src.Id
 		})
-		inters, err := r.interRepo.GetByIds(ctx, ids)
+		inters, err := r.interRepo.GetByIds(ctx, "article", ids)
 		if err != nil {
 			return []domain.Article{}, err
 		}
@@ -87,8 +89,8 @@ func (r *RankingServiceI) topN(ctx context.Context) ([]domain.Article, error) {
 		}
 		//别忘offset++
 		offset += len(arts)
-		//长度不够凑够一批，则说明到头了
-		if len(arts) < r.batchSize {
+		//长度不够凑够一批，则说明到头了  或者说已经取到七天前的数据，那么也不会再取数据(utime按大小降序，越小的时间绝对值越小，最后的数据是最早的
+		if len(arts) < r.batchSize || now.Sub(time.UnixMilli(arts[len(arts)-1].UTime)).Hours() > 7*24 {
 			break
 		}
 	}

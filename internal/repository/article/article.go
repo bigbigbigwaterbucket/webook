@@ -9,6 +9,7 @@ import (
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao/article"
+	"time"
 )
 
 //go:generate mockgen -source=D:/go_project/learning_go/webook/internal/repository/article/article.go -package=repomocks -destination=D:/go_project/learning_go/webook/internal/repository/article/mocks/article_mocks.go
@@ -22,7 +23,7 @@ type ArticleRepository interface {
 	FindById(ctx context.Context, aid int64) (domain.Article, error)
 	FindPublishedById(ctx context.Context, aid int64) (domain.Article, error)
 	FindByIds(ctx context.Context, aids []int64) ([]domain.Article, error)
-	GetRankingList(ctx context.Context, offset int, topNum int) ([]domain.Article, error)
+	GetRankingList(ctx context.Context, startTime time.Time, offset int, topNum int) ([]domain.Article, error)
 }
 
 type CachedArticleRepository struct {
@@ -34,6 +35,15 @@ type CachedArticleRepository struct {
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db    *gorm.DB
 	cache cache.ArticleCache
+}
+
+func (c *CachedArticleRepository) GetRankingList(ctx context.Context, startTime time.Time, offset int, topNum int) ([]domain.Article, error) {
+	//这里全遍历取数据就没必要存缓存了....
+	arts, err := c.dao.GetRankingList(ctx, startTime, offset, topNum)
+	if err != nil {
+		return []domain.Article{}, err
+	}
+	return c.EntitysToDomains(arts), err
 }
 
 func (c *CachedArticleRepository) FindByIds(ctx context.Context, aids []int64) ([]domain.Article, error) {
