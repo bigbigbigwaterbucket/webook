@@ -28,6 +28,7 @@ func (r *RankingJob) Name() string {
 	return "ranking" //知道哪个job出问题
 }
 
+// cron定时任务不会重新创建结构体！！结构体内存的数据在下一次创建goroutine Run的时候仍能使用
 func (r *RankingJob) Run(ctx context.Context) error {
 	r.localLock.Lock()
 	defer r.localLock.Unlock()
@@ -45,6 +46,7 @@ func (r *RankingJob) Run(ctx context.Context) error {
 			return err
 		}
 		go func() {
+			//这里会无限续约，直到web服务崩了/这台机子崩了;后续定时任务再run的时候，r.lock已经存下了锁，不会再创建续约goroutine的
 			er := r.lock.AutoRefresh(r.timeout/2, time.Second)
 			if er != nil {
 				zap.L().Error("热榜定时任务续约失败", zap.Error(er))
