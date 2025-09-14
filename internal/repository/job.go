@@ -9,17 +9,30 @@ import (
 
 type JobRepository interface {
 	Preempt(ctx context.Context) (domain.Job, error)
-	Refresh(ctx context.Context)
-	Release(ctx context.Context, id int64) error
+	UpdateUTime(ctx context.Context, jid int64) error
+	Release(ctx context.Context, jid int64) error
+	UpdateNextTime(ctx context.Context, jid int64, nt time.Time) error
+	Stop(ctx context.Context, jid int64) error
 }
 
 type OnlyGORMJobRepository struct {
 	dao dao.JobDao
 }
 
-func (o *OnlyGORMJobRepository) Refresh(ctx context.Context) {
-	//TODO implement me
-	panic("implement me")
+func (o *OnlyGORMJobRepository) Stop(ctx context.Context, jid int64) error {
+	return o.dao.Stop(ctx, jid)
+}
+
+func (o *OnlyGORMJobRepository) UpdateNextTime(ctx context.Context, jid int64, nt time.Time) error {
+	return o.dao.UpdateNextTime(ctx, jid, nt)
+}
+
+func (o *OnlyGORMJobRepository) Release(ctx context.Context, jid int64) error {
+	return o.dao.ReleaseStatus(ctx, jid)
+}
+
+func (o *OnlyGORMJobRepository) UpdateUTime(ctx context.Context, jid int64) error {
+	return o.dao.UpdateUTime(ctx, jid)
 }
 
 func (o *OnlyGORMJobRepository) Preempt(ctx context.Context) (domain.Job, error) {
@@ -27,6 +40,10 @@ func (o *OnlyGORMJobRepository) Preempt(ctx context.Context) (domain.Job, error)
 	if err != nil {
 		return domain.Job{}, err
 	}
-	return domain.Job{Id: jRes.Id, Name: jRes.Name, NextTime: time.UnixMilli(jRes.NextTime),
-		CTime: jRes.CTime, UTime: jRes.UTime}, nil
+	return o.EntityToDomain(jRes), nil
+}
+
+func (o *OnlyGORMJobRepository) EntityToDomain(jRes dao.Job) domain.Job {
+	return domain.Job{Id: jRes.Id, Name: jRes.Name,
+		CTime: jRes.CTime, UTime: jRes.UTime, Exe: jRes.Exe, CronDurTime: jRes.CronDurTime}
 }

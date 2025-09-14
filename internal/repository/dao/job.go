@@ -8,10 +8,44 @@ import (
 
 type JobDao interface {
 	Preempt(ctx context.Context) (Job, error)
+	ReleaseStatus(ctx context.Context, jid int64) error
+	UpdateNextTime(ctx context.Context, jid int64, nt time.Time) error
+	UpdateUTime(ctx context.Context, jid int64) error
+	Stop(ctx context.Context, jid int64) error
 }
 
 type GORMJobDao struct {
 	db *gorm.DB
+}
+
+func (G *GORMJobDao) Stop(ctx context.Context, jid int64) error {
+	return G.db.WithContext(ctx).Model(&Job{}).Where("id = ?", jid).Updates(map[string]any{
+		"status": JobStatusStop,
+		"u_time": time.Now().UnixMilli(),
+	}).Error
+}
+
+func (G *GORMJobDao) ReleaseStatus(ctx context.Context, jid int64) error {
+	// 这里有一个问题。你要不要检测 status 或者 version?
+	// WHERE version = ?
+	//TODO: 要。记得修改。因为当任务崩了后，可能被其他实例拿到该任务并执行，如果你又恢复了，不能把别人正在执行的任务释放了
+	return G.db.WithContext(ctx).Model(&Job{}).Where("id = ?", jid).Updates(map[string]any{
+		"status": JobStatusWaiting,
+		"u_time": time.Now().UnixMilli(),
+	}).Error
+}
+
+func (G *GORMJobDao) UpdateNextTime(ctx context.Context, jid int64, nt time.Time) error {
+	return G.db.WithContext(ctx).Model(&Job{}).Where("id = ?", jid).Updates(map[string]any{
+		"next_time": nt.UnixMilli(),
+		//"u_time":    time.Now().UnixMilli(),
+	}).Error
+}
+
+func (G *GORMJobDao) UpdateUTime(ctx context.Context, jid int64) error {
+	return G.db.WithContext(ctx).Model(&Job{}).Where("id = ?", jid).Updates(map[string]any{
+		"u_time": time.Now().UnixMilli(),
+	}).Error
 }
 
 func (G *GORMJobDao) Preempt(ctx context.Context) (Job, error) {
@@ -57,13 +91,15 @@ func (G *GORMJobDao) Preempt(ctx context.Context) (Job, error) {
 }
 
 type Job struct {
-	Id       int64 `gorm:"primaryKey,autoIncrement"`
-	Name     string
-	Version  int64 `gorm:"index"`
-	NextTime int64 `gorm:"index"`
-	Status   int8
-	CTime    int64
-	UTime    int64
+	Id          int64  `gorm:"primaryKey,autoIncrement"`
+	Name        string `gorm:"unique"`
+	Version     int64  `gorm:"index"`
+	NextTime    int64  `gorm:"index"`
+	Status      int8
+	CTime       int64
+	UTime       int64
+	Exe         string
+	CronDurTime string
 }
 
 const (
