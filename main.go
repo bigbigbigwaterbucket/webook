@@ -187,8 +187,9 @@ func main() {
 	interactiveCache := cache.NewRedisInteractiveCache(redisClient)
 	interactiveRepository := repository.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
 	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
-	rankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
-	rankingRepo := repository.NewOnlyCachedRankingRepository(rankingCache)
+	redisRankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
+	localRankingCache := cache.NewLocalRankingCache(time.Minute * 10) //这里三数据的本地缓存过期时间对齐redis
+	rankingRepo := repository.NewOnlyCachedRankingRepository(redisRankingCache, localRankingCache)
 	rankingService := service.NewRankingServiceI(articleRepository, interactiveRepository, rankingRepo)
 
 	//consumer
@@ -344,7 +345,7 @@ func main() {
 	//注册定时任务
 	expr := cron2.New()
 	//一次分批查询的总时长为60s，取决于近七天的数据量
-	job := job2.NewPrometheusJobBuilder().Build(job2.NewRankingJob(rankingService, time.Minute))
+	job := job2.NewPrometheusJobBuilder().Build(job2.NewRankingJob(redisClient, rankingService, time.Minute))
 	//每三分钟一次
 	_, err = expr.AddJob("0 */3 * * * ?", job)
 	if err != nil {

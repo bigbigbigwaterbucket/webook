@@ -15,10 +15,9 @@ type LocalRankingCache struct {
 	dur      time.Duration
 }
 
-func NewLocalRankingCache(topNArts *atomicx.Value[[]domain.Article],
-	ddl *atomicx.Value[time.Time],
+func NewLocalRankingCache(
 	dur time.Duration) *LocalRankingCache {
-	return &LocalRankingCache{topNArts: topNArts, ddl: ddl, dur: dur} // 永不过期，或者非常长，或者对齐到 redis 的过期时间，都行
+	return &LocalRankingCache{topNArts: atomicx.NewValue[[]domain.Article](), ddl: atomicx.NewValueOf(time.Now()), dur: dur} // 永不过期，或者非常长，或者对齐到 redis 的过期时间，都行
 }
 
 func (l *LocalRankingCache) Set(ctx context.Context, arts []domain.Article) error {

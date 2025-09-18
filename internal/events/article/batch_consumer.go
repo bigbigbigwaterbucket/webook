@@ -18,7 +18,8 @@ func NewInteractiveReadEventBatchConsumer(client sarama.Client, repo repository.
 	return &InteractiveReadEventBatchConsumer{client: client, repo: repo}
 }
 
-func (i *InteractiveReadEventBatchConsumer) Consume(msgs []*sarama.ConsumerMessage, read []ReadEvent) error {
+func (i *InteractiveReadEventBatchConsumer) Consume(ctx context.Context, msgs []*sarama.ConsumerMessage, read []ReadEvent) error {
+	ctx = context.WithValue(ctx, "bizName", "articleReadEvent")
 	//长度应当是相等的，，，但如果你不信任同事/自己，还要再判断下
 	bizs := make([]string, 0, len(read))
 	aids := make([]int64, 0, len(read))
@@ -26,9 +27,9 @@ func (i *InteractiveReadEventBatchConsumer) Consume(msgs []*sarama.ConsumerMessa
 		bizs = append(bizs, "article")
 		aids = append(aids, read[i].Aid)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	dbCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	err := i.repo.IncreaseReadCountN(ctx, bizs, aids)
+	err := i.repo.IncreaseReadCountN(dbCtx, bizs, aids)
 	return err
 }
 
