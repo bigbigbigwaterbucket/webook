@@ -7,6 +7,7 @@ import (
 	"learning_go/webook/internal/repository/article"
 )
 
+//go:generate
 type ArticleService interface {
 	Save(ctx context.Context, article domain.Article) (int64, error)
 	Publish(ctx context.Context, art domain.Article) (int64, error)
