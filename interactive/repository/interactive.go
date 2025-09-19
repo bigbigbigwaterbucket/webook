@@ -4,12 +4,13 @@ import (
 	"context"
 	"github.com/ecodeclub/ekit/slice"
 	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/cache"
-	"learning_go/webook/internal/repository/dao"
+	"learning_go/webook/interactive/domain"
+	"learning_go/webook/interactive/repository/cache"
+	"learning_go/webook/interactive/repository/dao"
 	"time"
 )
 
+//go:generate mockgen -source=D:/go_project/learning_go/webook/interactive/repository/interactive.go -package=repomocks -destination=D:/go_project/learning_go/webook/internal/repository/mocks/interactive_mocks.go
 type InteractiveRepository interface {
 	IncreaseReadCount(ctx context.Context, biz string, bizId int64) error
 	IncreaseLikeCnt(ctx context.Context, biz string, bizId int64, uid int64) error
@@ -20,7 +21,7 @@ type InteractiveRepository interface {
 	Collected(ctx context.Context, biz string, bizId int64, uid int64) (bool, error)
 	IncreaseReadCountN(ctx context.Context, bizs []string, aids []int64) error
 	GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error)
-	GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error)
+	GetByIds(ctx context.Context, biz string, ids []int64) ([]domain.Interactive, error)
 }
 
 type CachedInteractiveRepository struct {
@@ -30,9 +31,9 @@ type CachedInteractiveRepository struct {
 	cache       cache.InteractiveCache
 }
 
-func (c *CachedInteractiveRepository) GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error) {
-	//TODO implement me
-	panic("implement me")
+func (c *CachedInteractiveRepository) GetByIds(ctx context.Context, biz string, ids []int64) ([]domain.Interactive, error) {
+	ent, err := c.dao.GetByIds(ctx, biz, ids)
+	return c.EntitysToDomains(ent), err
 }
 
 func NewCachedInteractiveRepository(topDuration time.Duration, dao dao.InteractiveDao, cache cache.InteractiveCache) *CachedInteractiveRepository {

@@ -23,8 +23,12 @@ import (
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
 	gormPrometheus "gorm.io/plugin/prometheus"
+	articleEvent "learning_go/webook/interactive/events"
+	repository2 "learning_go/webook/interactive/repository"
+	cache2 "learning_go/webook/interactive/repository/cache"
+	dao2 "learning_go/webook/interactive/repository/dao"
+	service2 "learning_go/webook/interactive/service"
 	"learning_go/webook/internal/config"
-	articleEvent "learning_go/webook/internal/events/article"
 	job2 "learning_go/webook/internal/job"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
@@ -183,10 +187,10 @@ func main() {
 	articleCache := cache.NewRedisArticleCache(redisClient)
 	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache, userRepository)
 	articleService := service.NewArticleServiceI(articleRepository)
-	interactiveDao := dao.NewGORMInteractiveDao(db)
-	interactiveCache := cache.NewRedisInteractiveCache(redisClient)
-	interactiveRepository := repository.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
-	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
+	interactiveDao := dao2.NewGORMInteractiveDao(db)
+	interactiveCache := cache2.NewRedisInteractiveCache(redisClient)
+	interactiveRepository := repository2.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
+	interactiveService := service2.NewInteractiveServiceI(interactiveRepository)
 	redisRankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
 	localRankingCache := cache.NewLocalRankingCache(time.Minute * 10) //这里三数据的本地缓存过期时间对齐redis
 	rankingRepo := repository.NewOnlyCachedRankingRepository(redisRankingCache, localRankingCache)

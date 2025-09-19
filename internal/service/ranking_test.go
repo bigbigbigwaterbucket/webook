@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	domain2 "learning_go/webook/interactive/domain"
+	repository2 "learning_go/webook/interactive/repository"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
@@ -17,13 +19,13 @@ import (
 func TestTopN(t *testing.T) {
 	testCases := []struct {
 		name    string
-		mock    func(ctrl *gomock.Controller) (article.ArticleRepository, repository.InteractiveRepository)
+		mock    func(ctrl *gomock.Controller) (article.ArticleRepository, repository2.InteractiveRepository)
 		wantRes []domain.Article
 		wantErr error
 	}{
 		{
 			name: "正常返回排行数据",
-			mock: func(ctrl *gomock.Controller) (article.ArticleRepository, repository.InteractiveRepository) {
+			mock: func(ctrl *gomock.Controller) (article.ArticleRepository, repository2.InteractiveRepository) {
 				now := time.Now()
 				artRepo := repomocks2.NewMockArticleRepository(ctrl)
 				interRepo := repomocks.NewMockInteractiveRepository(ctrl)
@@ -34,7 +36,7 @@ func TestTopN(t *testing.T) {
 						{Id: 3, UTime: now.UnixMilli()},
 					}, nil)
 				interRepo.EXPECT().GetByIds(gomock.Any(), []int64{1, 2, 3}).Return(
-					map[int64]domain.Interactive{
+					map[int64]domain2.Interactive{
 						1: {LikeCnt: 3},
 						2: {LikeCnt: 2},
 						3: {LikeCnt: 1},

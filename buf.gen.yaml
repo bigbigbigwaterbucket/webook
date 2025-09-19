@@ -1,0 +1,12 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: "learning_go/webook/api/proto/gen"  # 生成的go包的前缀
+plugins:
+  - plugin: buf.build/protocolbuffers/go
+    out: api/proto/gen  #输出路径，相对于yaml文件所在目录的位置
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/go
+    out: api/proto/gen
+    opt: paths=source_relative

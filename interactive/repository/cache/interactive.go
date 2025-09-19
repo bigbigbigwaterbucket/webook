@@ -7,7 +7,7 @@ import (
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/interactive/domain"
 	"strconv"
 	"time"
 )

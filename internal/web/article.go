@@ -6,6 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	domain2 "learning_go/webook/interactive/domain"
+	service2 "learning_go/webook/interactive/service"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web/ijwt"
@@ -18,11 +20,11 @@ var _ handler = (*ArticleHandler)(nil)
 
 type ArticleHandler struct {
 	svc      service.ArticleService
-	interSvc service.InteractiveService
+	interSvc service2.InteractiveService
 	biz      string
 }
 
-func NewArticleHandler(svc service.ArticleService, interSvc service.InteractiveService) *ArticleHandler {
+func NewArticleHandler(svc service.ArticleService, interSvc service2.InteractiveService) *ArticleHandler {
 	return &ArticleHandler{svc: svc, interSvc: interSvc, biz: "article"}
 }
 
@@ -46,7 +48,7 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 	//没必要定义请求结构体，get请求，想统计什么top直接从路由参数那拿就可以
 	var err error
 	var req TopReq
-	var topData []domain.Interactive
+	var topData []domain2.Interactive
 	var articles []domain.Article
 	top := ctx.Param("top")
 	err = ctx.Bind(&req)
@@ -62,7 +64,7 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 			ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 			return
 		}
-		ids := slice.Map[domain.Interactive, int64](topData, func(idx int, src domain.Interactive) int64 {
+		ids := slice.Map[domain2.Interactive, int64](topData, func(idx int, src domain2.Interactive) int64 {
 			return src.BizId
 		})
 		articles, err = a.svc.GetByIds(ctx, ids)
@@ -213,7 +215,7 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 	//异步操作，拿到res数据后再操作
 	//开启一个封装了sync.WaitGroup的errGroup，用来等待异步组执行完并进行错误处理
 	var eg errgroup.Group
-	var interactiveData domain.Interactive
+	var interactiveData domain2.Interactive
 	var res domain.Article
 	//这样异步，io操作等待时是并行等待，总能省下时间
 	eg.Go(func() error {

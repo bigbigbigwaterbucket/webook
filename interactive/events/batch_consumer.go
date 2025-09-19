@@ -1,13 +1,15 @@
-package articleEvent
+package events
 
 import (
 	"context"
 	"github.com/IBM/sarama"
 	"go.uber.org/zap"
-	"learning_go/webook/internal/repository"
+	"learning_go/webook/interactive/repository"
 	"learning_go/webook/pkg/mysarama"
 	"time"
 )
+
+const topicReadEvent = "article_read_topic"
 
 type InteractiveReadEventBatchConsumer struct {
 	client sarama.Client //传client而不是consumer是因为这是一个类似于数据库服务的独立服务

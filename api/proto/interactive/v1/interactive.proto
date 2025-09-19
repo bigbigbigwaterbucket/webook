@@ -1,0 +1,89 @@
+syntax = "proto3";
+option go_package="../../gen/interactive;intrv1";
+
+service InteractiveService {
+    rpc IncreaseReadCount(IncreaseReadCountReq) returns(IncreaseReadCountResp);
+    rpc Like(LikeReq) returns(LikeResp);
+    rpc UnLike(UnLikeReq) returns (UnLikeResp);
+    rpc Get(GetReq) returns(GetResp);
+    rpc Collect(CollectReq) returns (CollectResp);
+    rpc GetLikeTop(GetLikeTopReq)returns (GetLikeTopResp);
+    rpc GetByIds(GetByIdsReq) returns (GetByIdsResp);
+}
+
+message Interactive{
+  int64 id=1;
+  string biz=2;
+  int64  biz_id=3;
+  int64 like_cnt=4;
+  int64 collect_cnt=5;
+  int64 read_cnt=6;
+  bool liked=7;
+  bool collected=8;
+}
+
+message IncreaseReadCountReq{
+  string biz=1;
+  int64 biz_id=2;
+}
+
+message IncreaseReadCountResp{
+}
+
+message LikeReq{
+  int64 aid=1;
+  int64 uid=2;
+  string biz=3;
+}
+
+message LikeResp{
+
+}
+
+message UnLikeReq{
+  int64 aid=1;
+  int64 uid=2;
+  string biz=3;
+}
+
+message UnLikeResp{
+
+}
+
+message GetReq{
+  string biz=1;
+  int64 biz_id=2;
+  int64 uid=3;
+}
+
+message GetResp{
+  Interactive inter=1;
+}
+
+message CollectReq{
+  string biz=1;
+  int64 biz_id=2;
+  int64 cid=3;
+  int64 uid=4;
+}
+
+message CollectResp{
+}
+
+message GetLikeTopReq{
+  string biz=1;
+  int64 top_num=2;
+}
+
+message GetLikeTopResp{
+  repeated Interactive inters=1;
+}
+
+message GetByIdsReq{
+  string biz=1;
+  repeated int64 ids=2;
+}
+
+message GetByIdsResp{
+  map<int64,Interactive> inter_maps=1;
+}

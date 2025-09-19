@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"golang.org/x/sync/errgroup"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository"
+	"learning_go/webook/interactive/domain"
+	"learning_go/webook/interactive/repository"
 )
 
 type InteractiveService interface {
@@ -14,9 +14,23 @@ type InteractiveService interface {
 	Get(ctx context.Context, biz string, bizId int64, uid int64) (domain.Interactive, error)
 	Collect(ctx context.Context, biz string, bizId int64, cid int64, uid int64) error
 	GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error)
+	GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error)
 }
 type InteractiveServiceI struct {
 	repo repository.InteractiveRepository
+}
+
+func (i *InteractiveServiceI) GetByIds(ctx context.Context, biz string, ids []int64) (map[int64]domain.Interactive, error) {
+	inters, err := i.repo.GetByIds(ctx, biz, ids)
+	if err != nil {
+		return map[int64]domain.Interactive{}, err
+	}
+	res := make(map[int64]domain.Interactive, len(inters))
+	for _, inter := range inters {
+		//注意这里是id而不是bizId
+		res[inter.BizId] = inter
+	}
+	return res, nil
 }
 
 func (i *InteractiveServiceI) GetLikeTop(ctx context.Context, biz string, topNum int64) ([]domain.Interactive, error) {
