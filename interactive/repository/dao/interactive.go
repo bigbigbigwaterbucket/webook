@@ -216,7 +216,7 @@ func (G *GORMInteractiveDao) IncreaseReadCount(ctx context.Context, biz string, 
 	}).Error
 }
 
-func NewGORMInteractiveDao(db *gorm.DB) *GORMInteractiveDao {
+func NewGORMInteractiveDao(db *gorm.DB) InteractiveDao {
 	return &GORMInteractiveDao{db: db}
 }
 

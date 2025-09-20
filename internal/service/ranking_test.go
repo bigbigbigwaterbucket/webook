@@ -6,6 +6,7 @@ import (
 	"go.uber.org/mock/gomock"
 	domain2 "learning_go/webook/interactive/domain"
 	repository2 "learning_go/webook/interactive/repository"
+	"learning_go/webook/interactive/service"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
@@ -25,7 +26,7 @@ func TestTopN(t *testing.T) {
 	}{
 		{
 			name: "正常返回排行数据",
-			mock: func(ctrl *gomock.Controller) (article.ArticleRepository, repository2.InteractiveRepository) {
+			mock: func(ctrl *gomock.Controller) (article.ArticleRepository, service.InteractiveService) {
 				now := time.Now()
 				artRepo := repomocks2.NewMockArticleRepository(ctrl)
 				interRepo := repomocks.NewMockInteractiveRepository(ctrl)
@@ -42,7 +43,7 @@ func TestTopN(t *testing.T) {
 						3: {LikeCnt: 1},
 					}, nil)
 				//artRepo.EXPECT().GetRankingList(gomock.Any(), 3, 100).Return()
-				return artRepo, interRepo
+				return artRepo, interSvc
 			},
 			wantRes: []domain.Article{
 				{Id: 3},
@@ -56,8 +57,8 @@ func TestTopN(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			articleRepo, interRepo := tc.mock(ctrl)
-			rank := NewRankingServiceI(articleRepo, interRepo, repository.RankingRepository(nil))
+			articleRepo, interSvc := tc.mock(ctrl)
+			rank := NewRankingServiceI(articleRepo, interSvc, repository.RankingRepository(nil))
 			arts, err := rank.topN(context.Background())
 			for i, art := range arts {
 				t.Log(art.UTime)

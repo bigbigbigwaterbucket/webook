@@ -36,7 +36,7 @@ func (c *CachedInteractiveRepository) GetByIds(ctx context.Context, biz string, 
 	return c.EntitysToDomains(ent), err
 }
 
-func NewCachedInteractiveRepository(topDuration time.Duration, dao dao.InteractiveDao, cache cache.InteractiveCache) *CachedInteractiveRepository {
+func NewCachedInteractiveRepository(topDuration time.Duration, dao dao.InteractiveDao, cache cache.InteractiveCache) InteractiveRepository {
 	return &CachedInteractiveRepository{topDuration: topDuration, dao: dao, cache: cache}
 }
 

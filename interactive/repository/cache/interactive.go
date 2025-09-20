@@ -68,7 +68,7 @@ func (r *RedisInteractiveCache) SetLikeTop(ctx context.Context, biz string, topN
 	return r.client.ZAdd(ctx, r.topKey(biz), topRedisData...).Err()
 }
 
-func NewRedisInteractiveCache(client redis.Cmdable) *RedisInteractiveCache {
+func NewRedisInteractiveCache(client redis.Cmdable) InteractiveCache {
 	return &RedisInteractiveCache{client: client}
 }
 

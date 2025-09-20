@@ -69,7 +69,7 @@ func (i *InteractiveServiceI) Collect(ctx context.Context, biz string, bizId int
 	return i.repo.AddCollectItem(ctx, biz, bizId, cid, uid)
 }
 
-func NewInteractiveServiceI(repo repository.InteractiveRepository) *InteractiveServiceI {
+func NewInteractiveServiceI(repo repository.InteractiveRepository) InteractiveService {
 	return &InteractiveServiceI{repo: repo}
 }
 

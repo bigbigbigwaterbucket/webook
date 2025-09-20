@@ -11,7 +11,7 @@ package repomocks
 
 import (
 	context "context"
-	"learning_go/webook/interactive/domain"
+	"learning_go/webook/main/domain"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

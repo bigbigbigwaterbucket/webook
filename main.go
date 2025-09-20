@@ -194,7 +194,7 @@ func main() {
 	redisRankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
 	localRankingCache := cache.NewLocalRankingCache(time.Minute * 10) //这里三数据的本地缓存过期时间对齐redis
 	rankingRepo := repository.NewOnlyCachedRankingRepository(redisRankingCache, localRankingCache)
-	rankingService := service.NewRankingServiceI(articleRepository, interactiveRepository, rankingRepo)
+	rankingService := service.NewRankingServiceI(articleRepository, interactiveService, rankingRepo)
 
 	//consumer
 	var address = []string{"localhost:9094"}
