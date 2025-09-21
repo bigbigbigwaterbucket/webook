@@ -4,24 +4,34 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	grpc2 "google.golang.org/grpc"
-	v1 "learning_go/webook/api/proto/gen/interactive/v1"
-	"net"
+	"log"
 )
 
 func main() {
 	initViper()
-	server := grpc2.NewServer()
-	intrService := InitGRPCService()
-	v1.RegisterInteractiveServiceServer(server, intrService)
-	l, err := net.Listen("tcp", ":8090")
-	if err != nil {
-		panic(err)
+	app := InitApp()
+	for _, consumer := range app.consumers {
+		err := consumer.Start()
+		if err != nil {
+			panic(err)
+		}
 	}
-	err = server.Serve(l)
-	zap.L().Error("微服务interactive错误", zap.Error(err))
+	err := app.server.Serve()
+	log.Println(err)
 }
+
+//func mainV1() {
+//	initViper()
+//	server := grpc2.NewServer()
+//	intrService := InitGRPCService()
+//	v1.RegisterInteractiveServiceServer(server, intrService)
+//	l, err := net.Listen("tcp", ":8090")
+//	if err != nil {
+//		panic(err)
+//	}
+//	err = server.Serve(l)
+//	zap.L().Error("微服务interactive错误", zap.Error(err))
+//}
 
 func initViper() {
 	//从程序运行参数program arguments那读取配置参数,value是默认值，返回的是地址，说明后续pflag还会修改指针指向的值

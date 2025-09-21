@@ -19,7 +19,7 @@ func NewBatchHandler[T any](consume func(context.Context, []*sarama.ConsumerMess
 	sv := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "waterbucket",
 		Subsystem: "webook",
-		Name:      "kafka_BatchConsumer",
+		Name:      "kafka_BatchConsumer_cost",
 		Help:      "封装后的kafka批量消费耗时",
 		Objectives: map[float64]float64{
 			0.5:  0.01,
@@ -31,7 +31,7 @@ func NewBatchHandler[T any](consume func(context.Context, []*sarama.ConsumerMess
 	cv := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "waterbucket",
 		Subsystem: "webook",
-		Name:      "kafka_BatchConsumer",
+		Name:      "kafka_BatchConsumer_err",
 		Help:      "封装后的kafka批量消费err计数",
 	}, []string{"bizName"})
 	prometheus.MustRegister(sv)

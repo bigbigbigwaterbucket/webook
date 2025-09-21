@@ -6,8 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-	domain2 "learning_go/webook/main/domain"
-	service2 "learning_go/webook/main/service"
+	"learning_go/webook/api/proto/gen/interactive/intrv1"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web/ijwt"
@@ -20,11 +19,11 @@ var _ handler = (*ArticleHandler)(nil)
 
 type ArticleHandler struct {
 	svc      service.ArticleService
-	interSvc service2.InteractiveService
+	interSvc intrv1.InteractiveServiceClient
 	biz      string
 }
 
-func NewArticleHandler(svc service.ArticleService, interSvc service2.InteractiveService) *ArticleHandler {
+func NewArticleHandler(svc service.ArticleService, interSvc intrv1.InteractiveServiceClient) *ArticleHandler {
 	return &ArticleHandler{svc: svc, interSvc: interSvc, biz: "article"}
 }
 
@@ -48,7 +47,7 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 	//没必要定义请求结构体，get请求，想统计什么top直接从路由参数那拿就可以
 	var err error
 	var req TopReq
-	var topData []domain2.Interactive
+	var topData []*intrv1.Interactive
 	var articles []domain.Article
 	top := ctx.Param("top")
 	err = ctx.Bind(&req)
@@ -59,12 +58,13 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 	switch top {
 	case "liketop":
 		//这里拿到的数据已经被减少过了
-		topData, err = a.interSvc.GetLikeTop(ctx, a.biz, req.TopNum)
+		getlikeResp, err := a.interSvc.GetLikeTop(ctx, &intrv1.GetLikeTopReq{Biz: a.biz, TopNum: req.TopNum})
 		if err != nil {
 			ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 			return
 		}
-		ids := slice.Map[domain2.Interactive, int64](topData, func(idx int, src domain2.Interactive) int64 {
+		topData = getlikeResp.Inters
+		ids := slice.Map[*intrv1.Interactive, int64](topData, func(idx int, src *intrv1.Interactive) int64 {
 			return src.BizId
 		})
 		articles, err = a.svc.GetByIds(ctx, ids)
@@ -91,9 +91,9 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 func (a *ArticleHandler) Like(ctx *gin.Context, req LikeReq, claim ijwt.UserClaims) (Result, error) {
 	var err error
 	if req.Like {
-		err = a.interSvc.Like(ctx, req.Id, claim.Uid, a.biz)
+		_, err = a.interSvc.Like(ctx, &intrv1.LikeReq{Aid: req.Id, Uid: claim.Uid, Biz: a.biz})
 	} else {
-		err = a.interSvc.UnLike(ctx, req.Id, claim.Uid, a.biz)
+		_, err = a.interSvc.UnLike(ctx, &intrv1.UnLikeReq{Aid: req.Id, Uid: claim.Uid, Biz: a.biz})
 	}
 	if err != nil {
 		return Result{Msg: "系统错误"}, err
@@ -215,16 +215,17 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 	//异步操作，拿到res数据后再操作
 	//开启一个封装了sync.WaitGroup的errGroup，用来等待异步组执行完并进行错误处理
 	var eg errgroup.Group
-	var interactiveData domain2.Interactive
+	var interactiveData *intrv1.Interactive
 	var res domain.Article
 	//这样异步，io操作等待时是并行等待，总能省下时间
 	eg.Go(func() error {
 		var er error
-		interactiveData, er = a.interSvc.Get(ctx, a.biz, id, claim.Uid)
+		getResp, er := a.interSvc.Get(ctx, &intrv1.GetReq{Biz: a.biz, BizId: id, Uid: claim.Uid})
 		if er != nil {
 			zap.L().Error("文章点赞收藏等信息获取失败")
 			return er
 		}
+		interactiveData = getResp.Inter
 		return nil
 	})
 	eg.Go(func() error {
@@ -236,7 +237,7 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 		return Result{Msg: "系统错误"}, err
 	}
 	go func() {
-		er := a.interSvc.IncreaseReadCount(ctx, a.biz, res.Id)
+		_, er := a.interSvc.IncreaseReadCount(ctx, &intrv1.IncreaseReadCountReq{Biz: a.biz, BizId: res.Id})
 		if er != nil {
 			zap.L().Error("阅读量增加失败")
 			return
@@ -263,7 +264,7 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 
 func (a *ArticleHandler) Collect(ctx *gin.Context, req CollectReq, claims ijwt.UserClaims) (ginx.Result, error) {
 	//这里就没做取消收藏的功能
-	err := a.interSvc.Collect(ctx, a.biz, req.Id, req.Cid, claims.Uid)
+	_, err := a.interSvc.Collect(ctx, &intrv1.CollectReq{Biz: a.biz, BizId: req.Id, Cid: req.Cid, Uid: claims.Uid})
 	if err != nil {
 		return Result{Msg: "系统错误"}, err
 	}

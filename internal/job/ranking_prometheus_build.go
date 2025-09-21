@@ -43,6 +43,10 @@ func (p *PrometheusJobBuilder) Build(job Job) CronJobFunc {
 		//ctx和span是绑定的，传ctx就会记录调用链路
 		defer span.End()
 		defer func() {
+			if r := recover(); r != nil {
+				success = false
+				zap.L().Error("cron_job发生panic", zap.String("name", name), zap.Any("recover", r), zap.Stack("stack"))
+			}
 			dur := time.Since(start)
 			zap.L().Info("cron_job执行结束", zap.String("name", name))
 			p.summary.WithLabelValues(name, strconv.FormatBool(success)).Observe(float64(dur.Milliseconds()))

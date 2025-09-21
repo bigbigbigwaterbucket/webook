@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	v1 "learning_go/webook/api/proto/gen/interactive/v1"
+	v1 "learning_go/webook/api/proto/gen/interactive/intrv1"
 	"net"
 	"testing"
 )

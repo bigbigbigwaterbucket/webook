@@ -165,7 +165,7 @@ scrape_configs:
         token: mysecret
         path_prefix: /consul
         services: ["nginx", "cache", "mysql"]
-        tags: ["canary", "v1"]
+        tags: ["canary", "intrv1"]
         node_meta:
           rack: "123"
         allow_stale: true

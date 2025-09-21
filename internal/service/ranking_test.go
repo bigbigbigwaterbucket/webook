@@ -1,3 +1,5 @@
+//go:build need_grpc_interactive
+
 package service
 
 import (

@@ -119,7 +119,7 @@ func (c *CachedInteractiveRepository) AddCollectItem(ctx context.Context, biz st
 	}
 	go func() {
 		//这里不需要uid，只要存点赞量就可以
-		er := c.cache.IncreaseCollectionCntIfPresent(ctx, biz, bizId)
+		er := c.cache.IncreaseCollectionCntIfPresent(context.Background(), biz, bizId)
 		if er != nil {
 			zap.L().Error("修改收藏数缓存错误", zap.Error(er))
 		}
@@ -134,7 +134,7 @@ func (c *CachedInteractiveRepository) IncreaseLikeCnt(ctx context.Context, biz s
 	}
 	go func() {
 		//这里不需要uid，只要存点赞量就可以
-		er := c.cache.IncreaseLikeCountIfPresent(ctx, biz, bizId) //这里还会尝试开协程改topN的缓存
+		er := c.cache.IncreaseLikeCountIfPresent(context.Background(), biz, bizId) //这里还会尝试开协程改topN的缓存
 		if er != nil {
 			zap.L().Error("修改点赞数缓存错误", zap.Error(er))
 		}
@@ -149,7 +149,7 @@ func (c *CachedInteractiveRepository) DecreaseLikeCnt(ctx context.Context, biz s
 	}
 	go func() {
 		//这里不需要uid，只要存点赞量就可以
-		er := c.cache.DecreaseLikeCountIfPresent(ctx, biz, bizId)
+		er := c.cache.DecreaseLikeCountIfPresent(context.Background(), biz, bizId)
 		if er != nil {
 			zap.L().Error("修改点赞数缓存错误", zap.Error(er))
 		}
@@ -166,7 +166,7 @@ func (c *CachedInteractiveRepository) IncreaseReadCount(ctx context.Context, biz
 	//存在才更新，否则查询
 	go func() {
 		//异步去做，不严格关心缓存数据的准确性
-		er := c.cache.IncreaseReadCountIfPresent(ctx, biz, bizId)
+		er := c.cache.IncreaseReadCountIfPresent(context.Background(), biz, bizId)
 		if er != nil {
 			zap.L().Error("修改阅读数缓存错误", zap.Error(er))
 		}

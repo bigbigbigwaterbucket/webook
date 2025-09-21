@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/google/wire"
+	"learning_go/webook/interactive/events"
 	"learning_go/webook/interactive/grpc"
 	"learning_go/webook/interactive/ioc"
 	"learning_go/webook/interactive/repository"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis)
+	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis, ioc.InitKafka)
 	interactiveSvcProvider = wire.NewSet(wire.Value(time.Minute),
 		dao.NewGORMInteractiveDao,
 		cache.NewRedisInteractiveCache,
@@ -22,7 +23,13 @@ var (
 		service.NewInteractiveServiceI)
 )
 
-func InitGRPCService() *grpc.InteractiveServiceServer {
-	wire.Build(thirdProvider, interactiveSvcProvider, grpc.NewInteractiveServiceServer)
+func InitApp() *App {
+	wire.Build(thirdProvider, interactiveSvcProvider,
+		grpc.NewInteractiveServiceServer,
+		events.NewInteractiveReadEventBatchConsumer,
+		ioc.InitConsumers,
+		ioc.InitGRPCXServer,
+		wire.Struct(new(App), "*"), //要求wire构建结构体并填充所有字段
+	)
 	return nil
 }

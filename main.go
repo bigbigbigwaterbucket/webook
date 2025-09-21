@@ -19,15 +19,19 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
 	gormPrometheus "gorm.io/plugin/prometheus"
+	"learning_go/webook/api/proto/gen/interactive/intrv1"
 	articleEvent "learning_go/webook/interactive/events"
 	repository2 "learning_go/webook/interactive/repository"
 	cache2 "learning_go/webook/interactive/repository/cache"
 	dao2 "learning_go/webook/interactive/repository/dao"
 	service2 "learning_go/webook/interactive/service"
+	client2 "learning_go/webook/internal/client"
 	"learning_go/webook/internal/config"
 	job2 "learning_go/webook/internal/job"
 	"learning_go/webook/internal/repository"
@@ -46,6 +50,7 @@ import (
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
 	"learning_go/webook/pkg/redisx"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -163,7 +168,6 @@ func main() {
 		})})
 	redisClient := redisv9.NewClient(&redisv9.Options{
 		Addr: config.Config.RedisURL})
-
 	if err != nil {
 		//只在初始化过程panic，最小化资源损失
 		panic(err) //panic：goroutine直接结束
@@ -194,7 +198,41 @@ func main() {
 	redisRankingCache := cache.NewRedisRankingCache(redisClient, "ranking")
 	localRankingCache := cache.NewLocalRankingCache(time.Minute * 10) //这里三数据的本地缓存过期时间对齐redis
 	rankingRepo := repository.NewOnlyCachedRankingRepository(redisRankingCache, localRankingCache)
-	rankingService := service.NewRankingServiceI(articleRepository, interactiveService, rankingRepo)
+
+	//grpc+local interactiveService
+	type grpcConfig struct {
+		Addr      string `yaml:"addr"`
+		Secure    bool   `yaml:"secure"`
+		Threshold int    `yaml:"threshold"`
+	}
+	var config2 grpcConfig
+	err = viper.UnmarshalKey("grpc.client.intr", &config2)
+	if err != nil {
+		panic(err)
+	}
+	localInteractive := client2.NewLocalInteractiveServiceClient(interactiveService)
+	var opts []grpc.DialOption
+	if config2.Secure {
+		//使用https的tls证书
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+	opts = append(opts, grpc.WithContextDialer(
+		func(ctx context.Context, addr string) (net.Conn, error) {
+			return net.Dial("tcp", addr) // 强制直连，不走代理
+		}))
+	cc, err := grpc.Dial(config2.Addr, opts...)
+	if err != nil {
+		panic(err)
+	}
+	remoteInteractive := intrv1.NewInteractiveServiceClient(cc)
+	gRPCInteractiveService := client2.NewGreyScaleInteractiveServiceClient(localInteractive, remoteInteractive)
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		err = viper.UnmarshalKey("grpc.client.intr", &config2)
+		gRPCInteractiveService.UpdateThreshold(config2.Threshold)
+	})
+
+	rankingService := service.NewRankingServiceI(articleRepository, gRPCInteractiveService, rankingRepo)
 
 	//consumer
 	var address = []string{"localhost:9094"}
@@ -212,7 +250,7 @@ func main() {
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
 	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
-	articleHandler := web.NewArticleHandler(articleService, interactiveService)
+	articleHandler := web.NewArticleHandler(articleService, gRPCInteractiveService)
 	// 用来测试prometheus的观测功能的接口，方便给wrk压测
 	observeHandler := web.NewObservabilityHandler()
 
@@ -351,7 +389,7 @@ func main() {
 	//一次分批查询的总时长为60s，取决于近七天的数据量
 	job := job2.NewPrometheusJobBuilder().Build(job2.NewRankingJob(redisClient, rankingService, time.Minute))
 	//每三分钟一次
-	_, err = expr.AddJob("0 */3 * * * ?", job)
+	_, err = expr.AddJob("*/3 * * * *", job)
 	if err != nil {
 		panic(err)
 	}

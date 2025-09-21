@@ -1,10 +1,11 @@
 package service
 
 import (
+	"errors"
 	"github.com/ecodeclub/ekit/queue"
 	"github.com/ecodeclub/ekit/slice"
 	"golang.org/x/net/context"
-	"learning_go/webook/interactive/service"
+	"learning_go/webook/api/proto/gen/interactive/intrv1"
 	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository"
 	"learning_go/webook/internal/repository/article"
@@ -20,14 +21,14 @@ type RankingService interface {
 // 该实现通过分批次从articles表中读取数据，不断替换topN来实现获取全表topN
 type RankingServiceI struct {
 	articleRepo article.ArticleRepository
-	interSvc    service.InteractiveService
+	interSvc    intrv1.InteractiveServiceClient
 	repo        repository.RankingRepository
 	rankScore   func(utime time.Time, likeCnt int64) float64
 	topNum      int
 	batchSize   int
 }
 
-func NewRankingServiceI(articleRepo article.ArticleRepository, interSvc service.InteractiveService, repo repository.RankingRepository) *RankingServiceI {
+func NewRankingServiceI(articleRepo article.ArticleRepository, interSvc intrv1.InteractiveServiceClient, repo repository.RankingRepository) *RankingServiceI {
 	return &RankingServiceI{articleRepo: articleRepo, interSvc: interSvc, repo: repo,
 		topNum: 100, batchSize: 100, rankScore: func(utime time.Time, likeCnt int64) float64 {
 			dur := time.Since(utime).Seconds()
@@ -70,12 +71,15 @@ func (r *RankingServiceI) topN(ctx context.Context) ([]domain.Article, error) {
 		ids := slice.Map[domain.Article, int64](arts, func(idx int, src domain.Article) int64 {
 			return src.Id
 		})
-		inters, err := r.interSvc.GetByIds(ctx, "article", ids)
+		inters, err := r.interSvc.GetByIds(ctx, &intrv1.GetByIdsReq{Biz: "article", Ids: ids})
 		if err != nil {
 			return []domain.Article{}, err
 		}
+		if len(inters.InterMaps) == 0 {
+			return nil, errors.New("没有数据")
+		}
 		for _, art := range arts {
-			inter := inters[art.Id]
+			inter := inters.InterMaps[art.Id]
 			artScore := r.rankScore(time.UnixMilli(art.UTime), inter.LikeCnt)
 			err := priorityQueue.Enqueue(Score{art: art, score: artScore})
 			if err == queue.ErrOutOfCapacity {

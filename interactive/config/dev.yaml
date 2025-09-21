@@ -3,3 +3,10 @@ mysql:
 
 redis:
   addr: "localhost:6379"
+
+kafka:
+  addr: "localhost:9094"
+
+grpc:
+  server:
+    addr: "localhost:8090"

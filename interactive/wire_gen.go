@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/google/wire"
+	"learning_go/webook/interactive/events"
 	"learning_go/webook/interactive/grpc"
 	"learning_go/webook/interactive/ioc"
 	"learning_go/webook/interactive/repository"
@@ -19,7 +20,7 @@ import (
 
 // Injectors from wire.go:
 
-func InitGRPCService() *grpc.InteractiveServiceServer {
+func InitApp() *App {
 	duration := _wireDurationValue
 	db := ioc.InitDB()
 	interactiveDao := dao.NewGORMInteractiveDao(db)
@@ -28,7 +29,15 @@ func InitGRPCService() *grpc.InteractiveServiceServer {
 	interactiveRepository := repository.NewCachedInteractiveRepository(duration, interactiveDao, interactiveCache)
 	interactiveService := service.NewInteractiveServiceI(interactiveRepository)
 	interactiveServiceServer := grpc.NewInteractiveServiceServer(interactiveService)
-	return interactiveServiceServer
+	server := ioc.InitGRPCXServer(interactiveServiceServer)
+	client := ioc.InitKafka()
+	interactiveReadEventBatchConsumer := events.NewInteractiveReadEventBatchConsumer(client, interactiveRepository)
+	v := ioc.InitConsumers(interactiveReadEventBatchConsumer)
+	app := &App{
+		server:    server,
+		consumers: v,
+	}
+	return app
 }
 
 var (
@@ -38,6 +47,6 @@ var (
 // wire.go:
 
 var (
-	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis)
+	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis, ioc.InitKafka)
 	interactiveSvcProvider = wire.NewSet(wire.Value(time.Minute), dao.NewGORMInteractiveDao, cache.NewRedisInteractiveCache, repository.NewCachedInteractiveRepository, service.NewInteractiveServiceI)
 )

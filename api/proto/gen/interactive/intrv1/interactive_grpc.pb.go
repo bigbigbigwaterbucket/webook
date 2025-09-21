@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: interactive/v1/interactive.proto
 
-package v1
+package intrv1
 
 import (
 	context "context"

@@ -1,2 +1,9 @@
 mysql:
   dsn: "root:root@tcp(webook-mysql:3308)/webook"
+
+grpc:
+  client:
+    intr:
+      Addr: "localhost:8090"
+      Secure: false
+      Threshold: 50
