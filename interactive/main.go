@@ -2,13 +2,18 @@ package main
 
 import (
 	"github.com/fsnotify/fsnotify"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"log"
+	"net/http"
 )
 
 func main() {
 	initViper()
+	initPrometheus()
+	initLogger()
 	app := InitApp()
 	for _, consumer := range app.consumers {
 		err := consumer.Start()
@@ -52,4 +57,24 @@ func initViper() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func initLogger() {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	//设置全局logger，全局输出日志的
+	//你在你的代码里就可以直接用zap.XXX来记录日志
+	zap.ReplaceGlobals(logger)
+	//L()获取zap里的全局L（好像是一种类型）logger
+	zap.L().Info("日志载入成功")
+}
+
+func initPrometheus() {
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		err := http.ListenAndServe(":8085", nil)
+		zap.L().Error("err", zap.Error(err))
+	}()
 }
