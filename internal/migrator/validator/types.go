@@ -5,6 +5,7 @@ import (
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ecodeclub/ekit/syncx/atomicx"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 	"learning_go/webook/internal/migrator"
 	"learning_go/webook/internal/migrator/events"
@@ -26,9 +27,17 @@ func NewValidator[t migrator.Entity](base *gorm.DB, target *gorm.DB, producer ev
 		direction: direction, batchSize: batchSize, highload: atomicx.NewValueOf[bool](false)}
 }
 
-func (v *Validator[t]) Validate(ctx context.Context) {
-	v.ValidateBaseToTarget(ctx)
-	v.ValidateTargetToBase(ctx)
+func (v *Validator[t]) Validate(ctx context.Context) error {
+	var eg errgroup.Group
+	eg.Go(func() error {
+		v.ValidateBaseToTarget(ctx)
+		return nil
+	})
+	eg.Go(func() error {
+		v.ValidateTargetToBase(ctx)
+		return nil
+	})
+	return eg.Wait()
 }
 
 // 理论上来说，可以利用 count 来加速这个过程，
