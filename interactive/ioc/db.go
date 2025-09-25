@@ -38,7 +38,7 @@ func InitDB() *gorm.DB {
 	}
 	//这里提供的接口是去检测sql的一些指标
 	err = db.Use(gormPrometheus.New(gormPrometheus.Config{
-		DBName:          "webook",
+		DBName:          "webook_intr",
 		RefreshInterval: 15,    //拉取间隔
 		StartServer:     false, //已经开启prometheus的handler了，不需要重新开启服务
 		MetricsCollector: []gormPrometheus.MetricsCollector{
@@ -53,7 +53,7 @@ func InitDB() *gorm.DB {
 
 	sqlVector := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "waterbucket",
-		Subsystem: "webook",
+		Subsystem: "webook_intr",
 		Name:      "gorm_query_time",
 		Objectives: map[float64]float64{
 			0.5:  0.01,
