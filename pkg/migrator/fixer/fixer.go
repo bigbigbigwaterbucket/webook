@@ -5,8 +5,8 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"learning_go/webook/internal/migrator"
-	"learning_go/webook/internal/migrator/events"
+	"learning_go/webook/pkg/migrator"
+	"learning_go/webook/pkg/migrator/events"
 	"time"
 )
 
@@ -14,6 +14,19 @@ type Fixer[t migrator.Entity] struct {
 	base    *gorm.DB
 	target  *gorm.DB
 	columns []string
+}
+
+func NewOverWriteFixer[t migrator.Entity](base *gorm.DB, target *gorm.DB) (*Fixer[t], error) {
+	var data t
+	rows, err := base.Model(&data).Limit(1).Rows()
+	if err != nil {
+		return nil, err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	return &Fixer[t]{base: base, target: target, columns: columns}, nil
 }
 
 func (f *Fixer[t]) Fix(ctx context.Context, evt events.InconsistentEvent) error {

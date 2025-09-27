@@ -7,8 +7,9 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
-	"learning_go/webook/internal/migrator"
-	"learning_go/webook/internal/migrator/events"
+	"learning_go/webook/pkg/migrator"
+	"learning_go/webook/pkg/migrator/events"
+	"learning_go/webook/pkg/migrator/events/fixer"
 	"reflect"
 	"time"
 )
@@ -16,15 +17,63 @@ import (
 type Validator[t migrator.Entity] struct {
 	base      *gorm.DB
 	target    *gorm.DB
-	producer  events.Producer
+	producer  fixer.Producer
 	direction string //为了支持通过配置文件热更新参数，需要放在结构体字段里，表示以哪个数据库为准
 	batchSize int
 	highload  *atomicx.Value[bool]
+	uTime     int64 //全量校验时置为0即可，当然全量校验也可以限制时间，如果你数据库数据很多
+	// <=0 说明直接退出校验循环
+	// > 0 真的 sleep
+	sleepInterval time.Duration //<=0表示全量校验，>0表示增量校验
+	orderByWt     func(ctx context.Context, offset int) (t, error)
+	//游标，用于保证增量校验时不漏数据
+	lastUtime int64
+	lastId    int64
 }
 
-func NewValidator[t migrator.Entity](base *gorm.DB, target *gorm.DB, producer events.Producer, direction string, batchSize int) *Validator[t] {
-	return &Validator[t]{base: base, target: target, producer: producer,
-		direction: direction, batchSize: batchSize, highload: atomicx.NewValueOf[bool](false)}
+func NewValidator[t migrator.Entity](base *gorm.DB, target *gorm.DB, producer fixer.Producer,
+	direction string, batchSize int, uTime int64, sleepInterval time.Duration) *Validator[t] {
+	res := &Validator[t]{base: base, target: target, producer: producer,
+		direction: direction, batchSize: batchSize,
+		highload: atomicx.NewValueOf[bool](false), uTime: uTime, sleepInterval: sleepInterval,
+	}
+	res.orderByWt = res.fullOrderById
+	return res
+}
+
+func (v *Validator[t]) Utime(utime int64) *Validator[t] {
+	v.uTime = utime
+	return v
+}
+
+func (v *Validator[t]) SleepInterval(slv time.Duration) *Validator[t] {
+	v.sleepInterval = slv
+	return v
+}
+
+func (v *Validator[t]) intr() *Validator[t] {
+	//每次重新开启增量校验，都会更新lastUtime
+	v.lastUtime = v.uTime
+	v.orderByWt = v.incrOrderByCursor
+	return v
+}
+
+func (v *Validator[t]) fullOrderById(ctx context.Context, offset int) (t, error) {
+	var res t
+	err := v.base.WithContext(ctx).Where("u_time > ? ", v.uTime).Order("u_time ASC,id ASC").Offset(offset).
+		First(&res).Error
+	return res, err
+}
+
+func (v *Validator[t]) incrOrderByCursor(ctx context.Context, offset int) (t, error) {
+	//incr基于游标而不是offset
+	var res t
+	err := v.base.WithContext(ctx).Order("u_time ASC,id ASC").
+		Where("u_time > ? or (u_time == ? and id > ?)", v.lastUtime, v.lastUtime, v.lastId).
+		First(&res).Error
+	v.lastUtime = res.UTime()
+	v.lastId = res.ID()
+	return res, err
 }
 
 func (v *Validator[t]) Validate(ctx context.Context) error {
@@ -48,16 +97,42 @@ func (v *Validator[t]) Validate(ctx context.Context) error {
 // 比如说，我先 count 第一个月的数据，一旦有数据删除了，你还得一条条查出来
 
 // 由于存在base库中数据被删除，但是target库仍然存在的情况，需要反向检查删除多了的数据
+// 软删除其实不需要反向校验
 func (v *Validator[t]) ValidateTargetToBase(ctx context.Context) {
-	offset := -v.batchSize
+	offset := 0
 	for {
 		if v.highload.Load() {
 			//高负荷，挂起等待负荷降低
 		}
-		offset += v.batchSize
 		var datas []t
-		err := v.target.WithContext(ctx).Order("id").Offset(offset).Find(&datas).Error
+		var err error
+		if v.sleepInterval <= 0 {
+			err = v.target.WithContext(ctx).
+				Where("u_time > ?", v.uTime).
+				Select("id").
+				// WHERE 条件二分查找 COUNT
+				Offset(offset).Limit(v.batchSize).
+				Order("id").Find(&datas).Error
+		} else {
+			err = v.target.WithContext(ctx).
+				Where("u_time > ? or (u_time == ? and id > ?)", v.lastUtime, v.lastUtime, v.lastId).
+				Limit(v.batchSize).Order("u_time ASC,id ASC").
+				Find(&datas).Error
+			//最后一个是u_time最大的，id最大的
+			v.lastUtime = datas[len(datas)-1].UTime()
+			v.lastId = datas[len(datas)-1].ID()
+		}
+		//这里需要额外判断，不能依赖gorm.ErrRecordNotFound，因为查询多条数据时不会返回notFound错误
+		if len(datas) == 0 {
+			if v.sleepInterval <= 0 {
+				return
+			}
+			time.Sleep(v.sleepInterval)
+			continue
+		}
 		switch err {
+		case context.DeadlineExceeded, context.Canceled: //超时或被主动停止
+			return
 		case nil:
 			ids := slice.Map[t, int64](datas, func(idx int, src t) int64 {
 				return src.ID()
@@ -76,32 +151,43 @@ func (v *Validator[t]) ValidateTargetToBase(ctx context.Context) {
 				v.notifyBaseMissing(ids)
 			default:
 				zap.L().Error("重检查询出错", zap.Error(err))
-				continue
 			}
 		case gorm.ErrRecordNotFound:
-			return
+			if v.sleepInterval <= 0 {
+				return
+			}
+			time.Sleep(v.sleepInterval)
+			continue
+
 		default:
 			zap.L().Error("重检查询出错", zap.Error(err))
-			continue
+			//这里不continue，以防这一个批次数据出错导致offset卡住
 		}
+		offset += len(datas)
 		if len(datas) < v.batchSize {
-			return
+			if v.sleepInterval <= 0 {
+				return
+			}
+			time.Sleep(v.sleepInterval)
 		}
 	}
 }
 
 func (v *Validator[t]) ValidateBaseToTarget(ctx context.Context) {
-	offset := -1
+	offset := 0
 	for {
 		if v.highload.Load() {
 			//高负荷，挂起等待负荷降低
 		}
-		offset++
 		var data t
+		data, err := v.orderByWt(ctx, offset)
 		//按id升序，保证后续插入的数据不影响offset，即不重复查
 		//也可以按照例如CTime等列排序
-		err := v.base.WithContext(ctx).Model(&data).Order("id").Offset(offset).First(&data).Error
+		//err := v.base.WithContext(ctx).Model(&data).Where("u_time > ?", v.uTime).
+		//	Order("id").Offset(offset).First(&data).Error
 		switch err {
+		case context.Canceled, context.DeadlineExceeded:
+			return
 		case nil:
 			// 准备比较数据
 			var dataTarget t
@@ -128,16 +214,19 @@ func (v *Validator[t]) ValidateBaseToTarget(ctx context.Context) {
 				v.notify(data.ID(), events.InconsistentTargetMissing)
 			default:
 				zap.L().Error("target库查询出错", zap.Error(err))
-				continue
 			}
 		case gorm.ErrRecordNotFound:
 			//offset到底了，全量校验结束了
-			return
+			if v.sleepInterval <= 0 {
+				return
+			}
+			time.Sleep(v.sleepInterval)
+			continue
 		default:
 			//可以不管，也可以认为数据不一致，尝试去修复（虽然修了也大概率没用
 			zap.L().Error("base库查询出错", zap.Error(err))
-			continue
 		}
+		offset++
 	}
 }
 

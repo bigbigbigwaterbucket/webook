@@ -49,6 +49,35 @@ func WrapperToken[C jwt.Claims](handler func(*gin.Context, C) (Result, error)) g
 			return
 		}
 		res, err := handler(ctx, cReal)
+		vector.WithLabelValues(strconv.Itoa(res.Code)).Inc()
+		if err != nil {
+			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
+		}
+		ctx.JSON(http.StatusOK, res)
+	}
+}
+
+func Wrapper(handler func(*gin.Context) (Result, error)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		res, err := handler(ctx)
+		vector.WithLabelValues(strconv.Itoa(res.Code)).Inc()
+		if err != nil {
+			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
+		}
+		ctx.JSON(http.StatusOK, res)
+	}
+}
+
+func WrapperReq[Req any](handler func(*gin.Context, Req) (Result, error)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var req Req
+		err := ctx.Bind(&req)
+		if err != nil {
+			ctx.JSON(http.StatusOK, Result{Msg: "请求参数绑定失败"})
+			return
+		}
+		res, err := handler(ctx, req)
+		vector.WithLabelValues(strconv.Itoa(res.Code)).Inc()
 		if err != nil {
 			zap.L().Error("err", zap.String("path", ctx.Request.URL.Path), zap.Error(err))
 		}

@@ -16,6 +16,15 @@ type DoubleWritePool struct {
 	pattern *atomicx.Value[string] //需要viper热配置的变量或者会改变的成员都要考虑并发安全
 }
 
+func NewDoubleWritePool(src gorm.ConnPool, dst gorm.ConnPool, pattern string) *DoubleWritePool {
+	return &DoubleWritePool{src: src, dst: dst, pattern: atomicx.NewValueOf[string](pattern)}
+}
+
+func (d *DoubleWritePool) Pattern(p string) {
+	//可以做成开事务禁止修改，但是没必要。。性能损耗还大
+	d.pattern.Store(p)
+}
+
 //想让你的connPool支持事务，需要实现以下两个接口其中一个：
 // TxBeginner tx beginner
 //type TxBeginner interface {

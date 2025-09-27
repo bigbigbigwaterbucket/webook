@@ -10,6 +10,10 @@ type Handler[T any] struct {
 	Consume func(*sarama.ConsumerMessage, T) error
 }
 
+func NewHandler[t any](consume func(*sarama.ConsumerMessage, t) error) *Handler[t] {
+	return &Handler[t]{Consume: consume}
+}
+
 func (h *Handler[T]) Setup(session sarama.ConsumerGroupSession) error {
 	return nil
 }
@@ -18,6 +22,7 @@ func (h *Handler[T]) Cleanup(session sarama.ConsumerGroupSession) error {
 	return nil
 }
 
+// “认领”消息
 func (h *Handler[T]) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	msgs := claim.Messages()
 	for msg := range msgs {
