@@ -25,6 +25,6 @@ func (s *SaramaProducer) ProduceInconsistentMessage(ctx context.Context, eve eve
 	if err != nil {
 		return err
 	}
-	_, _, err = s.p.SendMessage(&sarama.ProducerMessage{Topic: s.topic, Key: sarama.ByteEncoder(data)})
+	_, _, err = s.p.SendMessage(&sarama.ProducerMessage{Topic: s.topic, Value: sarama.ByteEncoder(data)})
 	return err
 }

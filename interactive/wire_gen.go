@@ -22,7 +22,10 @@ import (
 
 func InitApp() *App {
 	duration := _wireDurationValue
-	db := ioc.InitDB()
+	srcDB := ioc.InitSrcDB()
+	dstDB := ioc.InitDstDB()
+	doubleWritePool := ioc.InitDoubleWritePool(srcDB, dstDB)
+	db := ioc.InitBizDB(doubleWritePool)
 	interactiveDao := dao.NewGORMInteractiveDao(db)
 	cmdable := ioc.InitRedis()
 	interactiveCache := cache.NewRedisInteractiveCache(cmdable)
@@ -32,21 +35,28 @@ func InitApp() *App {
 	server := ioc.InitGRPCXServer(interactiveServiceServer)
 	client := ioc.InitKafka()
 	interactiveReadEventBatchConsumer := events.NewInteractiveReadEventBatchConsumer(client, interactiveRepository)
-	v := ioc.InitConsumers(interactiveReadEventBatchConsumer)
+	saramaConsumer := ioc.InitFixerConsumer(client, srcDB, dstDB)
+	v := ioc.InitConsumers(interactiveReadEventBatchConsumer, saramaConsumer)
+	syncProducer := ioc.InitSyncProducer(client)
+	int2 := _wireIntValue
+	engine := ioc.InitMigratorScheduler(doubleWritePool, srcDB, dstDB, syncProducer, int2)
 	app := &App{
 		server:    server,
 		consumers: v,
+		webServer: engine,
 	}
 	return app
 }
 
 var (
 	_wireDurationValue = time.Minute
+	_wireIntValue      = 10
 )
 
 // wire.go:
 
 var (
-	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis, ioc.InitKafka)
+	thirdProvider          = wire.NewSet(ioc.InitBizDB, ioc.InitRedis, ioc.InitKafka, ioc.InitDstDB, ioc.InitSrcDB, ioc.InitDoubleWritePool)
 	interactiveSvcProvider = wire.NewSet(wire.Value(time.Minute), dao.NewGORMInteractiveDao, cache.NewRedisInteractiveCache, repository.NewCachedInteractiveRepository, service.NewInteractiveServiceI)
+	migratorSvcProvider    = wire.NewSet(ioc.InitSyncProducer, ioc.InitMigratorScheduler, wire.Value(10)) //batchsize
 )

@@ -37,11 +37,11 @@ func (f *Fixer[t]) Fix(ctx context.Context, evt events.InconsistentEvent) error 
 	switch err {
 	case nil:
 		//upsert 解决双写阶段的并发问题
-		return f.target.WithContext(dbCtx).Clauses(clause.OnConflict{
+		return f.target.Clauses(clause.OnConflict{
 			DoUpdates: clause.AssignmentColumns(f.columns)}). //指定哪些列需要更新，具体数值从create里取得
 			Create(&srcData).Error
 	case gorm.ErrRecordNotFound:
-		return f.target.WithContext(dbCtx).Delete(&srcData, evt.ID).Error
+		return f.target.Delete(&srcData, evt.ID).Error
 	default:
 		return err
 	}

@@ -51,7 +51,7 @@ func (v *Validator[t]) SleepInterval(slv time.Duration) *Validator[t] {
 	return v
 }
 
-func (v *Validator[t]) intr() *Validator[t] {
+func (v *Validator[t]) Intr() *Validator[t] {
 	//每次重新开启增量校验，都会更新lastUtime
 	v.lastUtime = v.uTime
 	v.orderByWt = v.incrOrderByCursor
@@ -69,9 +69,9 @@ func (v *Validator[t]) incrOrderByCursor(ctx context.Context, offset int) (t, er
 	//incr基于游标而不是offset
 	var res t
 	err := v.base.WithContext(ctx).Order("u_time ASC,id ASC").
-		Where("u_time > ? or (u_time == ? and id > ?)", v.lastUtime, v.lastUtime, v.lastId).
+		Where("u_time > ? or (u_time = ? and id > ?)", v.lastUtime, v.lastUtime, v.lastId).
 		First(&res).Error
-	v.lastUtime = res.UTime()
+	v.lastUtime = res.Utime()
 	v.lastId = res.ID()
 	return res, err
 }
@@ -100,6 +100,9 @@ func (v *Validator[t]) Validate(ctx context.Context) error {
 // 软删除其实不需要反向校验
 func (v *Validator[t]) ValidateTargetToBase(ctx context.Context) {
 	offset := 0
+	//不能和另一个校验共享lastId和lastUtime
+	lastUtime := v.uTime
+	lastId := int64(0)
 	for {
 		if v.highload.Load() {
 			//高负荷，挂起等待负荷降低
@@ -115,21 +118,26 @@ func (v *Validator[t]) ValidateTargetToBase(ctx context.Context) {
 				Order("id").Find(&datas).Error
 		} else {
 			err = v.target.WithContext(ctx).
-				Where("u_time > ? or (u_time == ? and id > ?)", v.lastUtime, v.lastUtime, v.lastId).
+				Where("u_time > ? or (u_time = ? and id > ?)", lastUtime, lastUtime, lastId).
 				Limit(v.batchSize).Order("u_time ASC,id ASC").
 				Find(&datas).Error
+			if len(datas) == 0 {
+				time.Sleep(v.sleepInterval)
+				continue
+			}
 			//最后一个是u_time最大的，id最大的
-			v.lastUtime = datas[len(datas)-1].UTime()
-			v.lastId = datas[len(datas)-1].ID()
+			lastUtime = datas[len(datas)-1].Utime()
+			lastId = datas[len(datas)-1].ID()
 		}
 		//这里需要额外判断，不能依赖gorm.ErrRecordNotFound，因为查询多条数据时不会返回notFound错误
-		if len(datas) == 0 {
-			if v.sleepInterval <= 0 {
-				return
-			}
-			time.Sleep(v.sleepInterval)
-			continue
-		}
+		//上面已经判断了
+		//if len(datas) == 0 {
+		//	if v.sleepInterval <= 0 {
+		//		return
+		//	}
+		//	time.Sleep(v.sleepInterval)
+		//	continue
+		//}
 		switch err {
 		case context.DeadlineExceeded, context.Canceled: //超时或被主动停止
 			return

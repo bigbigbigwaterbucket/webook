@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"learning_go/webook/pkg/migrator"
 	"time"
 )
 
@@ -233,6 +234,19 @@ type Interactive struct {
 	LikeCnt    int64
 	CTime      int64
 	UTime      int64
+}
+
+func (i Interactive) ID() int64 {
+	return i.Id
+}
+
+func (i Interactive) CompareTo(dst migrator.Entity) bool {
+	dstVal, ok := dst.(Interactive)
+	return ok && i == dstVal //结构体字段都是可以比较类型，因此interactive也可以直接比较(引用类型没法比较
+}
+
+func (i Interactive) Utime() int64 {
+	return i.UTime
 }
 
 // 记录谁点赞了什么

@@ -25,3 +25,16 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	t.Log(resp.Inter)
 }
+
+func TestGRPCDoubleWrite(t *testing.T) {
+	// 写个 for 循环来模拟
+	cc, err := grpc.Dial("localhost:8090",
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	client := v1.NewInteractiveServiceClient(cc)
+	_, err = client.IncreaseReadCount(context.Background(), &v1.IncreaseReadCountReq{
+		Biz:   "article",
+		BizId: 10,
+	})
+	require.NoError(t, err)
+}

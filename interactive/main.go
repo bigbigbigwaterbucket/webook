@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
@@ -21,6 +22,11 @@ func main() {
 			panic(err)
 		}
 	}
+	fmt.Printf("server %#v\n", app.webServer)
+	go func() {
+		err := app.webServer.Run(":8091")
+		log.Println(err)
+	}()
 	err := app.server.Serve()
 	log.Println(err)
 }

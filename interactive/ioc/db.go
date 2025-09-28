@@ -9,16 +9,40 @@ import (
 	glogger "gorm.io/gorm/logger"
 	gormPrometheus "gorm.io/plugin/prometheus"
 	"learning_go/webook/internal/repository/dao"
+	"learning_go/webook/pkg/gormx"
 	"time"
 )
 
-func InitDB() *gorm.DB {
+func InitSrcDB() SrcDB {
+	return InitDB("src")
+}
+
+func InitDstDB() DstDB {
+	return InitDB("dst")
+}
+
+type SrcDB *gorm.DB
+type DstDB *gorm.DB
+
+func InitDoubleWritePool(db SrcDB, dstDB DstDB) *gormx.DoubleWritePool {
+	return gormx.NewDoubleWritePool(db.ConnPool, dstDB.ConnPool, gormx.PatternSrcOnly)
+}
+
+func InitBizDB(pool *gormx.DoubleWritePool) *gorm.DB {
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: pool}))
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+func InitDB(key string) *gorm.DB {
 	type Config struct {
 		DSN string `yaml:"dsn"` //反序列化读进来的，注意大写
 	}
 	var config1 Config
 	//远程链接etcd时，viper不支持对yaml文件分隔符.的解析！！！
-	err := viper.UnmarshalKey("mysql", &config1)
+	err := viper.UnmarshalKey("mysql."+key, &config1)
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +62,7 @@ func InitDB() *gorm.DB {
 	}
 	//这里提供的接口是去检测sql的一些指标
 	err = db.Use(gormPrometheus.New(gormPrometheus.Config{
-		DBName:          "webook_intr",
+		DBName:          "webook_intr" + key,
 		RefreshInterval: 15,    //拉取间隔
 		StartServer:     false, //已经开启prometheus的handler了，不需要重新开启服务
 		MetricsCollector: []gormPrometheus.MetricsCollector{
@@ -53,7 +77,7 @@ func InitDB() *gorm.DB {
 
 	sqlVector := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "waterbucket",
-		Subsystem: "webook_intr",
+		Subsystem: "webook_intr" + key,
 		Name:      "gorm_query_time",
 		Objectives: map[float64]float64{
 			0.5:  0.01,

@@ -1,5 +1,8 @@
 mysql:
-  dsn: "root:root@tcp(localhost:13316)/webook_intr"
+  src:
+    dsn: "root:root@tcp(localhost:13316)/webook"
+  dst:
+    dsn: "root:root@tcp(localhost:13316)/webook_intr"
 
 redis:
   addr: "localhost:6379"

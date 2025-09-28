@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const migratorTopic = "migrator_topic"
+const MigratorTopic = "migrator_topic"
 
 type MigratorScheduler[t migrator.Entity] struct {
 	doubleWritePool *gormx.DoubleWritePool
@@ -26,9 +26,10 @@ type MigratorScheduler[t migrator.Entity] struct {
 	stopFunc        func()
 }
 
-func NewMigratorScheduler[t migrator.Entity](srcDB *gorm.DB, dstDB *gorm.DB, producer sarama.SyncProducer, batchSize int) *MigratorScheduler[t] {
-	dw := gormx.NewDoubleWritePool(srcDB.ConnPool, dstDB.ConnPool, gormx.PatternSrcOnly)
-	p := fixer.NewSaramaProducer(producer, migratorTopic)
+func NewMigratorScheduler[t migrator.Entity](dw *gormx.DoubleWritePool, srcDB *gorm.DB, dstDB *gorm.DB, producer sarama.SyncProducer, batchSize int) *MigratorScheduler[t] {
+	//这里的dw不能自己创建，因为这是要用于正常业务的数据库
+	//dw := gormx.NewDoubleWritePool(srcDB.ConnPool, dstDB.ConnPool, gormx.PatternSrcOnly)
+	p := fixer.NewSaramaProducer(producer, MigratorTopic) //这里已经不是依赖注入了！！！
 	srcV := validator.NewValidator[t](srcDB, dstDB, p, "SRC", batchSize, 0, 0)
 	dstV := validator.NewValidator[t](dstDB, srcDB, p, "DST", batchSize, 0, 0)
 	return &MigratorScheduler[t]{doubleWritePool: dw, producer: p, pattern: gormx.PatternSrcOnly,
@@ -109,11 +110,11 @@ func (m *MigratorScheduler[t]) StartIncrValidate(ctx *gin.Context, req IncreaseR
 	switch m.pattern {
 	case gormx.PatternSrcOnly, gormx.PatternSrcFirst:
 		go func() {
-			err = m.srcValidator.Utime(req.Utime).SleepInterval(time.Duration(req.SleepInterval)).Validate(ctxV)
+			err = m.srcValidator.Intr().Utime(req.Utime).SleepInterval(time.Millisecond * time.Duration(req.SleepInterval)).Validate(ctxV)
 		}()
 	case gormx.PatternDstOnly, gormx.PatternDstFirst:
 		go func() {
-			err = m.dstValidator.Utime(req.Utime).SleepInterval(time.Duration(req.SleepInterval)).Validate(ctxV)
+			err = m.dstValidator.Intr().Utime(req.Utime).SleepInterval(time.Millisecond * time.Duration(req.SleepInterval)).Validate(ctxV)
 		}()
 	default:
 		return ginx.Result{Msg: "系统错误"}, errors.New("未知的pattern模式")

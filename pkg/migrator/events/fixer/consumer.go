@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/IBM/sarama"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"learning_go/webook/pkg/migrator"
 	"learning_go/webook/pkg/migrator/events"
@@ -46,5 +47,12 @@ func (s *SaramaConsumer[t]) Start() error {
 	if err != nil {
 		return err
 	}
-	return cs.Consume(context.Background(), s.topics, mysarama.NewHandler[events.InconsistentEvent](s.Consume))
+	//这里，记得，开goroutine!!!会进入无限循环！！
+	go func() {
+		er := cs.Consume(context.Background(), s.topics, mysarama.NewHandler[events.InconsistentEvent](s.Consume))
+		if er != nil {
+			zap.L().Error("数据迁移消费者退出消费循环", zap.Error(er))
+		}
+	}()
+	return nil
 }

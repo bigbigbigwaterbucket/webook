@@ -15,18 +15,21 @@ import (
 )
 
 var (
-	thirdProvider          = wire.NewSet(ioc.InitDB, ioc.InitRedis, ioc.InitKafka)
+	thirdProvider          = wire.NewSet(ioc.InitBizDB, ioc.InitRedis, ioc.InitKafka, ioc.InitDstDB, ioc.InitSrcDB, ioc.InitDoubleWritePool)
 	interactiveSvcProvider = wire.NewSet(wire.Value(time.Minute),
 		dao.NewGORMInteractiveDao,
 		cache.NewRedisInteractiveCache,
 		repository.NewCachedInteractiveRepository,
 		service.NewInteractiveServiceI)
+	migratorSvcProvider = wire.NewSet(ioc.InitSyncProducer, ioc.InitMigratorScheduler,
+		wire.Value(10)) //batchsize
 )
 
 func InitApp() *App {
-	wire.Build(thirdProvider, interactiveSvcProvider,
+	wire.Build(thirdProvider, interactiveSvcProvider, migratorSvcProvider,
 		grpc.NewInteractiveServiceServer,
 		events.NewInteractiveReadEventBatchConsumer,
+		ioc.InitFixerConsumer,
 		ioc.InitConsumers,
 		ioc.InitGRPCXServer,
 		wire.Struct(new(App), "*"), //要求wire构建结构体并填充所有字段

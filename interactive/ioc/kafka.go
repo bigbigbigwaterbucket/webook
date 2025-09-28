@@ -4,6 +4,8 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
 	"learning_go/webook/interactive/events"
+	"learning_go/webook/interactive/repository/dao"
+	"learning_go/webook/pkg/migrator/events/fixer"
 	"learning_go/webook/pkg/mysarama"
 )
 
@@ -18,6 +20,7 @@ func InitKafka() sarama.Client {
 	}
 	var address = []string{config1.Addr}
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.Producer.Return.Successes = true
 	client, err := sarama.NewClient(address, saramaConfig)
 	if err != nil {
 		panic(err)
@@ -25,6 +28,14 @@ func InitKafka() sarama.Client {
 	return client
 }
 
-func InitConsumers(consumer *events.InteractiveReadEventBatchConsumer) []mysarama.Consumer {
-	return []mysarama.Consumer{consumer}
+func InitConsumers(intr *events.InteractiveReadEventBatchConsumer, fix *fixer.SaramaConsumer[dao.Interactive]) []mysarama.Consumer {
+	return []mysarama.Consumer{intr, fix}
+}
+
+func InitSyncProducer(client sarama.Client) sarama.SyncProducer {
+	p, err := sarama.NewSyncProducerFromClient(client)
+	if err != nil {
+		panic(err)
+	}
+	return p
 }
