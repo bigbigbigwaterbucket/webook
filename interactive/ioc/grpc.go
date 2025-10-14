@@ -10,7 +10,8 @@ import (
 
 func InitGRPCXServer(svc *grpc.InteractiveServiceServer) *grpcx.Server {
 	type Config struct {
-		Addr string `yaml:"addr"`
+		Port      int      `yaml:"port"`
+		EtcdAddrs []string `yaml:"etcdAddrs"`
 	}
 	var config1 Config
 	err := viper.UnmarshalKey("grpc.server", &config1)
@@ -19,5 +20,16 @@ func InitGRPCXServer(svc *grpc.InteractiveServiceServer) *grpcx.Server {
 	}
 	server := grpc2.NewServer()
 	v1.RegisterInteractiveServiceServer(server, svc)
-	return &grpcx.Server{Addr: config1.Addr, Server: server}
+	return &grpcx.Server{Name: "interactive", EtcdAddrs: config1.EtcdAddrs, Port: config1.Port, Server: server}
 }
+
+//type Server struct {
+//	*grpc.Server
+//	Name            string
+//	EtcdAddrs       []string
+//	port            int
+//	client          *etcdv3.Client
+//	kaCancel        func()
+//	endPointManager endpoints.Manager
+//	key             string
+//}
