@@ -2,9 +2,10 @@ package repository
 
 import (
 	"context"
-	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/article/domain"
 	"learning_go/webook/internal/repository/cache"
+
+	"go.uber.org/zap"
 )
 
 type RankingRepository interface {

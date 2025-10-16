@@ -3,6 +3,18 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"learning_go/webook/article/domain"
+	"learning_go/webook/article/repository/article"
+	article3 "learning_go/webook/article/repository/dao/article"
+	"learning_go/webook/article/service"
+	"learning_go/webook/internal/config"
+	"learning_go/webook/internal/repository/dao"
+	"learning_go/webook/internal/web"
+	"learning_go/webook/internal/web/ijwt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,17 +22,6 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"learning_go/webook/internal/config"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/article"
-	"learning_go/webook/internal/repository/dao"
-	article2 "learning_go/webook/internal/repository/dao/article"
-	"learning_go/webook/internal/service"
-	"learning_go/webook/internal/web"
-	"learning_go/webook/internal/web/ijwt"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 // 测试套件
@@ -54,7 +55,7 @@ func (a *ArticleTestSuite) SetupSuite() {
 	a.server.Use(func(context *gin.Context) {
 		context.Set("user", ijwt.UserClaims{Uid: 666})
 	})
-	artHandler := web.NewArticleHandler(service.NewArticleServiceI(article.NewCachedArticleRepository(article2.NewGormArticleDao(db))))
+	artHandler := web.NewArticleHandler(service.NewArticleServiceI(article.NewCachedArticleRepository(article3.NewGormArticleDao(db))))
 	artHandler.RegisterRouter(a.server)
 }
 
@@ -91,14 +92,14 @@ func (s *ArticleTestSuite) TestEdit() {
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art article2.Article
+				var art article3.Article
 				err := s.db.Where("id=?", 1).First(&art).Error
 				assert.NoError(t, err)
 				assert.True(t, art.CTime > 0)
 				assert.True(t, art.UTime > 0)
 				art.CTime = 0
 				art.UTime = 0
-				assert.Equal(t, article2.Article{
+				assert.Equal(t, article3.Article{
 					Id:       1,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -113,17 +114,17 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "更新帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(article2.Article{Id: 2, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
+				err := s.db.Create(article3.Article{Id: 2, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art article2.Article
+				var art article3.Article
 				err := s.db.Where("id=?", 2).First(&art).Error
 				assert.NoError(t, err)
 				assert.True(t, art.UTime > 234)
 				art.UTime = 0
-				assert.Equal(t, article2.Article{
+				assert.Equal(t, article3.Article{
 					Id:       2,
 					Title:    "新的标题",
 					Content:  "新的内容",
@@ -139,16 +140,16 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "改一篇不存在的帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(article2.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234,
+				err := s.db.Create(article3.Article{Id: 3, Content: "我的内容", Title: "我的标题", AuthorId: 666, CTime: 123, UTime: 234,
 					Status: domain.ArticleStatusUnPublished.ToUnt8()}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art article2.Article
+				var art article3.Article
 				err := s.db.Where("id=?", 3).First(&art).Error
 				assert.NoError(t, err)
-				assert.Equal(t, article2.Article{
+				assert.Equal(t, article3.Article{
 					Id:       3,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -165,16 +166,16 @@ func (s *ArticleTestSuite) TestEdit() {
 		{
 			name: "666号篡改别人(111号)的帖子",
 			before: func(t *testing.T) {
-				err := s.db.Create(article2.Article{Id: 4, Content: "我的内容", Title: "我的标题", AuthorId: 111, CTime: 123, UTime: 234,
+				err := s.db.Create(article3.Article{Id: 4, Content: "我的内容", Title: "我的标题", AuthorId: 111, CTime: 123, UTime: 234,
 					Status: domain.ArticleStatusUnPublished.ToUnt8()}).Error
 				assert.NoError(t, err)
 			},
 			after: func(t *testing.T) {
 				//检查数据库
-				var art article2.Article
+				var art article3.Article
 				err := s.db.Where("id=?", 4).First(&art).Error
 				assert.NoError(t, err)
-				assert.Equal(t, article2.Article{
+				assert.Equal(t, article3.Article{
 					Id:       4,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -234,14 +235,14 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 			},
 			after: func(t *testing.T) {
 				// 验证一下数据
-				var art article2.Article
+				var art article3.Article
 				s.db.Where("author_id = ?", 666).First(&art)
 				assert.Equal(t, "hello，你好", art.Title)
 				assert.Equal(t, "随便试试", art.Content)
 				assert.Equal(t, int64(666), art.AuthorId)
 				assert.True(t, art.CTime > 0)
 				assert.True(t, art.UTime > 0)
-				var publishedArt article2.PublishArticle
+				var publishedArt article3.PublishArticle
 				s.db.Where("author_id = ?", 666).First(&publishedArt)
 				assert.Equal(t, "hello，你好", publishedArt.Title)
 				assert.Equal(t, "随便试试", publishedArt.Content)
@@ -264,7 +265,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 			name: "更新帖子并新发表",
 			before: func(t *testing.T) {
 				// 模拟已经存在的帖子
-				s.db.Create(&article2.Article{
+				s.db.Create(&article3.Article{
 					Id:       2,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -275,7 +276,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 			},
 			after: func(t *testing.T) {
 				// 验证一下数据
-				var art article2.Article
+				var art article3.Article
 				s.db.Where("id = ?", 2).First(&art)
 				assert.Equal(t, "新的标题", art.Title)
 				assert.Equal(t, "新的内容", art.Content)
@@ -284,7 +285,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 				assert.Equal(t, int64(456), art.CTime)
 				// 更新时间变了
 				assert.True(t, art.UTime > 234)
-				var publishedArt article2.PublishArticle
+				var publishedArt article3.PublishArticle
 				s.db.Where("id = ?", 2).First(&publishedArt)
 				assert.Equal(t, "新的标题", art.Title)
 				assert.Equal(t, "新的内容", art.Content)
@@ -306,7 +307,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 		{
 			name: "更新帖子，并且重新发表",
 			before: func(t *testing.T) {
-				art := article2.Article{
+				art := article3.Article{
 					Id:       3,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -315,11 +316,11 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 					AuthorId: 666,
 				}
 				s.db.Create(&art)
-				part := article2.PublishArticle{art}
+				part := article3.PublishArticle{art}
 				s.db.Create(&part)
 			},
 			after: func(t *testing.T) {
-				var art article2.Article
+				var art article3.Article
 				s.db.Where("id = ?", 3).First(&art)
 				assert.Equal(t, "新的标题", art.Title)
 				assert.Equal(t, "新的内容", art.Content)
@@ -329,7 +330,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 				// 更新时间变了
 				assert.True(t, art.UTime > 234)
 
-				var part article2.PublishArticle
+				var part article3.PublishArticle
 				s.db.Where("id = ?", 3).First(&part)
 				assert.Equal(t, "新的标题", part.Title)
 				assert.Equal(t, "新的内容", part.Content)
@@ -353,7 +354,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 		{
 			name: "更新别人的帖子，并且发表失败",
 			before: func(t *testing.T) {
-				art := article2.Article{
+				art := article3.Article{
 					Id:      4,
 					Title:   "我的标题",
 					Content: "我的内容",
@@ -363,7 +364,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 					AuthorId: 789,
 				}
 				s.db.Create(&art)
-				part := article2.PublishArticle{article2.Article{
+				part := article3.PublishArticle{article3.Article{
 					Id:       4,
 					Title:    "我的标题",
 					Content:  "我的内容",
@@ -375,7 +376,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 			},
 			after: func(t *testing.T) {
 				// 更新应该是失败了，数据没有发生变化
-				var art article2.Article
+				var art article3.Article
 				s.db.Where("id = ?", 4).First(&art)
 				assert.Equal(t, "我的标题", art.Title)
 				assert.Equal(t, "我的内容", art.Content)
@@ -383,7 +384,7 @@ func (s *ArticleTestSuite) TestArticle_Publish() {
 				assert.Equal(t, int64(234), art.UTime)
 				assert.Equal(t, int64(789), art.AuthorId)
 
-				var part article2.PublishArticle
+				var part article3.PublishArticle
 				// 数据没有变化
 				s.db.Where("id = ?", 4).First(&part)
 				assert.Equal(t, "我的标题", part.Title)

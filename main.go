@@ -3,29 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/IBM/sarama"
-	"github.com/fsnotify/fsnotify"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/redis"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	redisv9 "github.com/redis/go-redis/v9"
-	cron2 "github.com/robfig/cron/v3"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
-	_ "github.com/spf13/viper/remote"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	glogger "gorm.io/gorm/logger"
-	gormPrometheus "gorm.io/plugin/prometheus"
 	"learning_go/webook/api/proto/gen/interactive/intrv1"
+	"learning_go/webook/article/repository/article"
+	cache3 "learning_go/webook/article/repository/cache"
+	article2 "learning_go/webook/article/repository/dao/article"
+	service3 "learning_go/webook/article/service"
 	articleEvent "learning_go/webook/interactive/events"
 	repository2 "learning_go/webook/interactive/repository"
 	cache2 "learning_go/webook/interactive/repository/cache"
@@ -35,10 +17,8 @@ import (
 	"learning_go/webook/internal/config"
 	job2 "learning_go/webook/internal/job"
 	"learning_go/webook/internal/repository"
-	"learning_go/webook/internal/repository/article"
 	"learning_go/webook/internal/repository/cache"
 	"learning_go/webook/internal/repository/dao"
-	article2 "learning_go/webook/internal/repository/dao/article"
 	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/service/oauth2/wechat"
 	"learning_go/webook/internal/service/sms/sms_implementation/memoryTest"
@@ -54,6 +34,31 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/IBM/sarama"
+	"github.com/fsnotify/fsnotify"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/redis"
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	redisv9 "github.com/redis/go-redis/v9"
+	cron2 "github.com/robfig/cron/v3"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+	_ "github.com/spf13/viper/remote"
+	etcdv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/naming/resolver"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	glogger "gorm.io/gorm/logger"
+	gormPrometheus "gorm.io/plugin/prometheus"
 )
 
 func initViperRemote() {
@@ -188,9 +193,9 @@ func main() {
 	codeService := service.NewCodeService(smsSvc, codeRepository)
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
 	articleDao := article2.NewGormArticleDao(db)
-	articleCache := cache.NewRedisArticleCache(redisClient)
+	articleCache := cache3.NewRedisArticleCache(redisClient)
 	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache, userRepository)
-	articleService := service.NewArticleServiceI(articleRepository)
+	articleService := service3.NewArticleServiceI(articleRepository)
 	interactiveDao := dao2.NewGORMInteractiveDao(db)
 	interactiveCache := cache2.NewRedisInteractiveCache(redisClient)
 	interactiveRepository := repository2.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
@@ -221,10 +226,20 @@ func main() {
 		func(ctx context.Context, addr string) (net.Conn, error) {
 			return net.Dial("tcp", addr) // 强制直连，不走代理
 		}))
-	cc, err := grpc.Dial(config2.Addr, opts...)
+	//基于dsn的rpc连接方式
+	//cc, err := grpc.Dial(config2.Addr, opts...)
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	etcdClient, err := etcdv3.New(etcdv3.Config{Endpoints: []string{"localhost:12379"}})
 	if err != nil {
 		panic(err)
 	}
+	bd, err := resolver.NewBuilder(etcdClient)
+	//connect to the RPCServer by etcd.
+	cc, err := grpc.Dial("etcd:///service/interactive", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	remoteInteractive := intrv1.NewInteractiveServiceClient(cc)
 	gRPCInteractiveService := client2.NewGreyScaleInteractiveServiceClient(localInteractive, remoteInteractive)
 	viper.OnConfigChange(func(in fsnotify.Event) {

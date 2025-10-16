@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
+	"learning_go/webook/article/domain"
+	"learning_go/webook/article/repository/article"
+
 	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/article"
 )
 
 type ArticleService interface {

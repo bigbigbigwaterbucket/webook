@@ -3,9 +3,10 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"github.com/redis/go-redis/v9"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/article/domain"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type RankingCache interface {

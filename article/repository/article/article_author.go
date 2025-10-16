@@ -2,7 +2,7 @@ package article
 
 import (
 	"context"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/article/domain"
 )
 
 type ArticleAuthorRepository interface {

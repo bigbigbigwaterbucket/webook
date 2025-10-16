@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"learning_go/webook/article/domain"
+	"time"
+
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
-	"time"
 )
 
 type ArticleCache interface {

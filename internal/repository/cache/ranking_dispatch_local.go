@@ -3,9 +3,10 @@ package cache
 import (
 	"context"
 	"errors"
-	"github.com/ecodeclub/ekit/syncx/atomicx"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/article/domain"
 	"time"
+
+	"github.com/ecodeclub/ekit/syncx/atomicx"
 )
 
 type LocalRankingCache struct {

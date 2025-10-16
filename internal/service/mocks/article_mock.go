@@ -11,7 +11,7 @@ package svcmocks
 
 import (
 	context "context"
-	domain "learning_go/webook/internal/domain"
+	"learning_go/webook/article/domain"
 	reflect "reflect"
 
 	gin "github.com/gin-gonic/gin"

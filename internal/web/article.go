@@ -2,28 +2,28 @@ package web
 
 import (
 	"fmt"
-	"github.com/ecodeclub/ekit/slice"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
+	"learning_go/webook/api/proto/gen/article/artv1"
 	"learning_go/webook/api/proto/gen/interactive/intrv1"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/service"
 	"learning_go/webook/internal/web/ijwt"
 	"learning_go/webook/pkg/ginx"
 	"net/http"
 	"strconv"
+
+	"github.com/ecodeclub/ekit/slice"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var _ handler = (*ArticleHandler)(nil)
 
 type ArticleHandler struct {
-	svc      service.ArticleService
+	svc      artv1.ArticleServiceClient
 	interSvc intrv1.InteractiveServiceClient
 	biz      string
 }
 
-func NewArticleHandler(svc service.ArticleService, interSvc intrv1.InteractiveServiceClient) *ArticleHandler {
+func NewArticleHandler(svc artv1.ArticleServiceClient, interSvc intrv1.InteractiveServiceClient) *ArticleHandler {
 	return &ArticleHandler{svc: svc, interSvc: interSvc, biz: "article"}
 }
 
@@ -48,7 +48,7 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 	var err error
 	var req TopReq
 	var topData []*intrv1.Interactive
-	var articles []domain.Article
+	var articles []*artv1.Article
 	top := ctx.Param("top")
 	err = ctx.Bind(&req)
 	if err != nil {
@@ -61,21 +61,27 @@ func (a *ArticleHandler) GetTop(ctx *gin.Context) {
 		getlikeResp, err := a.interSvc.GetLikeTop(ctx, &intrv1.GetLikeTopReq{Biz: a.biz, TopNum: req.TopNum})
 		if err != nil {
 			ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+			zap.L().Error("interactive服务通信错误")
 			return
 		}
 		topData = getlikeResp.Inters
 		ids := slice.Map[*intrv1.Interactive, int64](topData, func(idx int, src *intrv1.Interactive) int64 {
 			return src.BizId
 		})
-		articles, err = a.svc.GetByIds(ctx, ids)
-		ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: slice.Map[domain.Article, ArticleVO](articles, func(idx int, src domain.Article) ArticleVO {
+		getByIdsResp, err := a.svc.GetByIds(ctx, &artv1.GetByIdsReq{ArticleIds: ids})
+		if err != nil {
+			ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
+			zap.L().Error("article服务通信错误")
+		}
+		articles = getByIdsResp.Articles
+		ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: slice.Map[*artv1.Article, ArticleVO](articles, func(idx int, src *artv1.Article) ArticleVO {
 			return ArticleVO{
 				Id:    src.Id,
 				Title: src.Title,
 				//Abstract: res.Abstract(),
-				Status:  src.Status.ToUnt8(),
-				Ctime:   src.CTime,
-				Utime:   src.UTime,
+				Status:  uint8(src.ArticleStatus),
+				Ctime:   src.Ctime,
+				Utime:   src.Utime,
 				Content: src.Content,
 			}
 		}),
@@ -109,24 +115,27 @@ func (a *ArticleHandler) Publish(ctx *gin.Context) {
 	}
 	c := ctx.MustGet("user")
 	claim, _ := c.(ijwt.UserClaims)
-	id, err := a.svc.Publish(ctx, domain.Article{Id: req.Id, Title: req.Title, Content: req.Content, Author: domain.Author{Id: claim.Uid}})
+	publishResp, err := a.svc.Publish(ctx, &artv1.PublishReq{Article: &artv1.Article{Id: req.Id, Title: req.Title, Content: req.Content,
+		Author: &artv1.Author{Id: claim.Uid}}})
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
-		zap.L().Error("帖子发布失败")
+		zap.L().Error("article服务通信错误，帖子发布失败")
 		return
 	}
 	//函数参数是值传递，不可能给你结构体改了的
 	//ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: req.id})
-	ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: id})
+	ctx.JSON(http.StatusOK, Result{Msg: "OK", Data: publishResp.ArticleId})
 }
 
 func (a *ArticleHandler) Edit(ctx *gin.Context, req ArticleReq, claim ijwt.UserClaims) (Result, error) {
 	//这里不可能断言错误，因为login_jwt那最差也是传入空UserClaims
-	aid, err := a.svc.Save(ctx, domain.Article{Id: req.Id, Title: req.Title, Content: req.Content, Author: domain.Author{Id: claim.Uid}})
+	saveResp, err := a.svc.Save(ctx, &artv1.SaveReq{Article: &artv1.Article{Id: req.Id, Title: req.Title, Content: req.Content,
+		Author: &artv1.Author{Id: claim.Uid}}})
 	if err != nil {
+		zap.L().Error("article服务通信错误，帖子编辑失败")
 		return Result{Msg: "系统错误"}, err
 	}
-	return Result{Msg: "OK", Data: aid}, err
+	return Result{Msg: "OK", Data: saveResp.ArticleId}, err
 }
 
 func (a *ArticleHandler) Withdraw(ctx *gin.Context) {
@@ -141,31 +150,33 @@ func (a *ArticleHandler) Withdraw(ctx *gin.Context) {
 	c := ctx.MustGet("user")
 	//这里不可能断言错误，因为login_jwt那最差也是传入空UserClaims
 	claim, _ := c.(ijwt.UserClaims)
-	err := a.svc.Withdraw(ctx, req.Id, claim.Uid)
+	_, err := a.svc.Withdraw(ctx, &artv1.WithdrawReq{ArticleId: req.Id, UserId: claim.Uid})
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
-		zap.L().Error("帖子撤销失败")
+		zap.L().Error("article服务通信错误，帖子撤销失败")
 		return
 	}
 	ctx.JSON(http.StatusOK, Result{Msg: "OK"})
 }
 
 func (a *ArticleHandler) List(ctx *gin.Context, req ListReq, claim ijwt.UserClaims) (ginx.Result, error) {
-	res, err := a.svc.List(ctx, claim.Uid, req.Offset, req.Limit)
+	listResp, err := a.svc.List(ctx, &artv1.ListReq{UserId: claim.Uid, Offset: req.Offset, Limit: req.Limit})
 	if err != nil {
+		zap.L().Error("article服务通信错误，帖子获取失败")
 		return Result{Msg: "系统错误"}, err
 	}
+	arts := listResp.Articles
 	return Result{
 		//对切片的每个元素应用xxx函数，即map
-		Data: slice.Map[domain.Article, ArticleVO](res, func(idx int, src domain.Article) ArticleVO {
+		Data: slice.Map[*artv1.Article, ArticleVO](arts, func(idx int, src *artv1.Article) ArticleVO {
 			return ArticleVO{
 				Id:    src.Id,
 				Title: src.Title,
 				//在列表页，不需要显示全文，只需要显示摘要，简单的摘要就是几句话
-				Abstract: src.Abstract(),
-				Status:   src.Status.ToUnt8(),
-				Ctime:    src.CTime,
-				Utime:    src.UTime,
+				Abstract: src.Content, //TODO:这里由于使用的不是domain类型数据，因此没有abstract函数，最佳实践是这里也用domain？
+				Status:   uint8(src.ArticleStatus),
+				Ctime:    src.Ctime,
+				Utime:    src.Utime,
 				//Content: src.Content,
 			}
 		}),
@@ -182,11 +193,13 @@ func (a *ArticleHandler) Detail(ctx *gin.Context, claim ijwt.UserClaims) (ginx.R
 			Msg:  "参数错误",
 		}, fmt.Errorf("查询文章详情的 ID %s 不正确, %w", id, err)
 	}
-	res, err := a.svc.GetById(ctx, aid)
+	getByIdResp, err := a.svc.GetById(ctx, &artv1.GetByIdReq{ArticleId: aid})
 	if err != nil {
+		zap.L().Error("article服务通信错误，帖子详情获取失败")
 		return Result{Msg: "系统错误"}, err
 	}
-	if claim.Uid != res.Author.Id {
+	art := getByIdResp.Article
+	if claim.Uid != art.Author.Id {
 		zap.L().Error("作者与文章作者不匹配", zap.Int64("uid", claim.Uid))
 		return Result{
 			Code: 4,
@@ -195,13 +208,13 @@ func (a *ArticleHandler) Detail(ctx *gin.Context, claim ijwt.UserClaims) (ginx.R
 	}
 	return Result{
 		Data: ArticleVO{
-			Id:    res.Id,
-			Title: res.Title,
+			Id:    art.Id,
+			Title: art.Title,
 			//Abstract: res.Abstract(),
-			Status:  res.Status.ToUnt8(),
-			Ctime:   res.CTime,
-			Utime:   res.UTime,
-			Content: res.Content,
+			Status:  uint8(art.ArticleStatus),
+			Ctime:   art.Ctime,
+			Utime:   art.Utime,
+			Content: art.Content,
 		},
 	}, nil
 }
@@ -216,21 +229,26 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 	//开启一个封装了sync.WaitGroup的errGroup，用来等待异步组执行完并进行错误处理
 	var eg errgroup.Group
 	var interactiveData *intrv1.Interactive
-	var res domain.Article
+	var res *artv1.Article
 	//这样异步，io操作等待时是并行等待，总能省下时间
 	eg.Go(func() error {
 		var er error
 		getResp, er := a.interSvc.Get(ctx, &intrv1.GetReq{Biz: a.biz, BizId: id, Uid: claim.Uid})
 		if er != nil {
-			zap.L().Error("文章点赞收藏等信息获取失败")
+			zap.L().Error("interactive服务通信失败,文章点赞收藏等信息获取失败")
 			return er
 		}
 		interactiveData = getResp.Inter
 		return nil
 	})
 	eg.Go(func() error {
-		res, err = a.svc.GetPublishedById(ctx, id)
-		return err
+		getPublishedByIdResp, er := a.svc.GetPublishedById(ctx, &artv1.GetPublishedByIdReq{ArticleId: id})
+		if er != nil {
+			zap.L().Error("article服务通信失败,文章内容详情获取失败")
+			return er
+		}
+		res = getPublishedByIdResp.Article
+		return er
 	})
 	err = eg.Wait()
 	if err != nil {
@@ -248,10 +266,10 @@ func (a *ArticleHandler) PubDetail(ctx *gin.Context, claim ijwt.UserClaims) (Res
 		Data: ArticleVO{
 			Id:       res.Id,
 			Title:    res.Title,
-			Abstract: res.Abstract(),
+			Abstract: res.Content, //TODO:这里由于使用的不是domain类型数据，因此没有abstract函数，最佳实践是这里也用domain？
 			//Status:   res.Status.ToUnt8(),
-			Ctime:      res.CTime,
-			Utime:      res.UTime,
+			Ctime:      res.Ctime,
+			Utime:      res.Utime,
 			Content:    res.Content,
 			CollectCnt: interactiveData.CollectCnt,
 			LikeCnt:    interactiveData.LikeCnt,

@@ -2,14 +2,15 @@ package article
 
 import (
 	"context"
+	"learning_go/webook/article/domain"
+	"learning_go/webook/article/repository/cache"
+	article2 "learning_go/webook/article/repository/dao/article"
+	"learning_go/webook/internal/repository"
+	"time"
+
 	"github.com/ecodeclub/ekit/slice"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository"
-	"learning_go/webook/internal/repository/cache"
-	"learning_go/webook/internal/repository/dao/article"
-	"time"
 )
 
 //go:generate mockgen -source=D:/go_project/learning_go/webook/internal/repository/article/article.go -package=repomocks -destination=D:/go_project/learning_go/webook/internal/repository/article/mocks/article_mocks.go
@@ -27,11 +28,11 @@ type ArticleRepository interface {
 }
 
 type CachedArticleRepository struct {
-	dao article.ArticleDao
+	dao article2.ArticleDao
 	//引入同层业务，实际上同层调用不是好的设计？
 	userRepo repository.UserRepository
-	author   article.AuthorDao
-	reader   article.ReaderDao
+	author   article2.AuthorDao
+	reader   article2.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
 	db    *gorm.DB
 	cache cache.ArticleCache
@@ -51,7 +52,7 @@ func (c *CachedArticleRepository) FindByIds(ctx context.Context, aids []int64) (
 	return c.EntitysToDomains(data), err
 }
 
-func NewCachedArticleRepository(dao article.ArticleDao, cache cache.ArticleCache, userRepo repository.UserRepository) *CachedArticleRepository {
+func NewCachedArticleRepository(dao article2.ArticleDao, cache cache.ArticleCache, userRepo repository.UserRepository) *CachedArticleRepository {
 	return &CachedArticleRepository{dao: dao, cache: cache, userRepo: userRepo}
 }
 
@@ -122,7 +123,7 @@ func (c *CachedArticleRepository) List(ctx context.Context, uid int64, offset in
 	if err != nil {
 		return nil, err
 	}
-	data := slice.Map[article.Article, domain.Article](res, func(idx int, src article.Article) domain.Article {
+	data := slice.Map[article2.Article, domain.Article](res, func(idx int, src article2.Article) domain.Article {
 		return c.EntityToDomain(src)
 	})
 	//可以同步，也可以异步，一般异步都是做成可配置的
@@ -166,8 +167,8 @@ func (c *CachedArticleRepository) SyncV2(ctx context.Context, art domain.Article
 	defer tx.Rollback()
 	//在后续数据库操作中传入事务，即可实现原子性
 	//传入同一个数据库的事务
-	author := article.NewGormArticleDao(tx)
-	reader := article.NewReaderDaoI(tx)
+	author := article2.NewGormArticleDao(tx)
+	reader := article2.NewReaderDaoI(tx)
 	var aid int64
 	aid = art.Id
 	var err error
@@ -202,7 +203,7 @@ func (c *CachedArticleRepository) SyncV1(ctx context.Context, art domain.Article
 		}
 	}
 	//这里没办法通过前端传过来的article是否带id来判断是否已经发布
-	err = c.reader.UpdateOrInsert(ctx, article.PublishArticle{c.DomainToEntity(art)})
+	err = c.reader.UpdateOrInsert(ctx, article2.PublishArticle{c.DomainToEntity(art)})
 	return aid, err
 }
 
@@ -244,7 +245,7 @@ func (c *CachedArticleRepository) Create(ctx context.Context, art domain.Article
 			zap.L().Error("删除缓存失败", zap.Error(err))
 		}
 	}()
-	return c.dao.Insert(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
+	return c.dao.Insert(ctx, article2.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
 func (c *CachedArticleRepository) Update(ctx context.Context, art domain.Article) (int64, error) {
@@ -254,12 +255,12 @@ func (c *CachedArticleRepository) Update(ctx context.Context, art domain.Article
 			zap.L().Error("删除缓存失败", zap.Error(err))
 		}
 	}()
-	return c.dao.UpdateById(ctx, article.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
+	return c.dao.UpdateById(ctx, article2.Article{Id: art.Id, Title: art.Title, Content: art.Content, AuthorId: art.Author.Id, Status: art.Status.ToUnt8()})
 }
 
 // 这里dao层的ctime与utime就没必要修改了，也最好不要传进去，不要让他修改数据库的数据
-func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Article {
-	return article.Article{
+func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article2.Article {
+	return article2.Article{
 		Id:       art.Id,
 		Title:    art.Title,
 		Content:  art.Content,
@@ -267,7 +268,7 @@ func (c *CachedArticleRepository) DomainToEntity(art domain.Article) article.Art
 		Status:   art.Status.ToUnt8()}
 }
 
-func (c *CachedArticleRepository) EntityToDomain(art article.Article) domain.Article {
+func (c *CachedArticleRepository) EntityToDomain(art article2.Article) domain.Article {
 	return domain.Article{
 		Id:      art.Id,
 		Title:   art.Title,
@@ -279,8 +280,8 @@ func (c *CachedArticleRepository) EntityToDomain(art article.Article) domain.Art
 	}
 }
 
-func (c *CachedArticleRepository) EntitysToDomains(articles []article.Article) []domain.Article {
-	return slice.Map[article.Article, domain.Article](articles, func(idx int, src article.Article) domain.Article {
+func (c *CachedArticleRepository) EntitysToDomains(articles []article2.Article) []domain.Article {
+	return slice.Map[article2.Article, domain.Article](articles, func(idx int, src article2.Article) domain.Article {
 		return c.EntityToDomain(src)
 	})
 }

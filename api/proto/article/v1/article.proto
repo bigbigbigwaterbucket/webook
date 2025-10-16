@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+option go_package="../../article;artv1";
+
+service ArticleService{
+  rpc Save(SaveReq) returns(SaveResp);
+  rpc Publish(PublishReq) returns(PublishResp);
+  rpc Withdraw(WithdrawReq) returns(WithdrawResp);
+  rpc List(ListReq) returns(ListResp);
+  rpc GetById(GetByIdReq) returns(GetByIdResp);
+  rpc GetPublishedById(GetPublishedByIdReq) returns(GetPublishedByIdResp);
+  rpc GetByIds(GetByIdsReq) returns(GetByIdsResp);
+}
+
+message Author{
+  int64 id=1;
+  string name=2;
+}
+
+message Article{
+  int64 id=1;
+  string title=2;
+  string content=3;
+  Author author=4;
+  uint32 article_status=5;
+  int64 ctime=6;
+  int64 utime=7;
+}
+
+message SaveReq{
+  Article article=1;
+}
+
+message SaveResp{
+  int64 article_id=1;
+}
+
+message PublishReq{
+  Article article=1;
+}
+
+message PublishResp{
+  int64 article_id=1;
+}
+
+message WithdrawReq{
+  int64 article_id=1;
+  int64 user_id=2;
+}
+
+message WithdrawResp{
+}
+
+
+message ListReq{
+  int64 user_id=1;
+  int64 offset=2;
+  int64 limit=3;
+}
+
+message ListResp{
+  repeated Article articles=1;
+}
+
+message GetByIdReq{
+  int64 article_id=1;
+}
+
+message GetByIdResp{
+  Article article=1;
+}
+
+message GetPublishedByIdReq{
+  int64 article_id=1;
+}
+
+message GetPublishedByIdResp{
+  Article article=1;
+}
+
+
+message GetByIdsReq{
+  repeated int64 article_ids=1;
+}
+
+message GetByIdsResp{
+  repeated Article articles=1;
+}

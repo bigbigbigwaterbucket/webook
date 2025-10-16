@@ -4,18 +4,19 @@ package service
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+	"learning_go/webook/article/domain"
+	"learning_go/webook/article/repository/article"
+	repomocks2 "learning_go/webook/article/repository/article/mocks"
 	domain2 "learning_go/webook/interactive/domain"
 	repository2 "learning_go/webook/interactive/repository"
 	"learning_go/webook/interactive/service"
-	"learning_go/webook/internal/domain"
 	"learning_go/webook/internal/repository"
-	"learning_go/webook/internal/repository/article"
-	repomocks2 "learning_go/webook/internal/repository/article/mocks"
 	repomocks "learning_go/webook/internal/repository/mocks"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 // 复杂逻辑的单测是有必要的

@@ -2,15 +2,16 @@ package service
 
 import (
 	"errors"
+	"learning_go/webook/api/proto/gen/interactive/intrv1"
+	"learning_go/webook/article/domain"
+	"learning_go/webook/article/repository/article"
+	"learning_go/webook/internal/repository"
+	"math"
+	"time"
+
 	"github.com/ecodeclub/ekit/queue"
 	"github.com/ecodeclub/ekit/slice"
 	"golang.org/x/net/context"
-	"learning_go/webook/api/proto/gen/interactive/intrv1"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository"
-	"learning_go/webook/internal/repository/article"
-	"math"
-	"time"
 )
 
 //go:generate mockgen -source=D:/go_project/learning_go/webook/internal/service/ranking_dispatch.go -package=svcmocks -destination=D:/go_project/learning_go/webook/internal/service/mocks/ranking_mock.go
