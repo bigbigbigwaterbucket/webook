@@ -2,12 +2,13 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: interactive/v1/interactive.proto
+// source: interactive.proto
 
 package intrv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,13 +20,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	InteractiveService_IncreaseReadCount_FullMethodName = "/InteractiveService/IncreaseReadCount"
-	InteractiveService_Like_FullMethodName              = "/InteractiveService/Like"
-	InteractiveService_UnLike_FullMethodName            = "/InteractiveService/UnLike"
-	InteractiveService_Get_FullMethodName               = "/InteractiveService/Get"
-	InteractiveService_Collect_FullMethodName           = "/InteractiveService/Collect"
-	InteractiveService_GetLikeTop_FullMethodName        = "/InteractiveService/GetLikeTop"
-	InteractiveService_GetByIds_FullMethodName          = "/InteractiveService/GetByIds"
+	InteractiveService_IncreaseReadCount_FullMethodName = "/intrv1.InteractiveService/IncreaseReadCount"
+	InteractiveService_Like_FullMethodName              = "/intrv1.InteractiveService/Like"
+	InteractiveService_UnLike_FullMethodName            = "/intrv1.InteractiveService/UnLike"
+	InteractiveService_Get_FullMethodName               = "/intrv1.InteractiveService/Get"
+	InteractiveService_Collect_FullMethodName           = "/intrv1.InteractiveService/Collect"
+	InteractiveService_GetLikeTop_FullMethodName        = "/intrv1.InteractiveService/GetLikeTop"
+	InteractiveService_GetByIds_FullMethodName          = "/intrv1.InteractiveService/GetByIds"
 )
 
 // InteractiveServiceClient is the client API for InteractiveService service.
@@ -312,7 +313,7 @@ func _InteractiveService_GetByIds_Handler(srv interface{}, ctx context.Context, 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var InteractiveService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "InteractiveService",
+	ServiceName: "intrv1.InteractiveService",
 	HandlerType: (*InteractiveServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -345,5 +346,5 @@ var InteractiveService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "interactive/v1/interactive.proto",
+	Metadata: "interactive.proto",
 }

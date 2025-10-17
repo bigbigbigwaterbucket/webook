@@ -30,7 +30,7 @@ type ArticleRepository interface {
 type CachedArticleRepository struct {
 	dao article2.ArticleDao
 	//引入同层业务，实际上同层调用不是好的设计？
-	userRepo repository.UserRepository
+	userRepo repository.UserRepository //TODO:这里也是错误设计，为微服务化考虑应当从service层依赖起
 	author   article2.AuthorDao
 	reader   article2.ReaderDao
 	//耦合了dao操作的东西，建议只在使用事务的时候用这个db
@@ -52,8 +52,8 @@ func (c *CachedArticleRepository) FindByIds(ctx context.Context, aids []int64) (
 	return c.EntitysToDomains(data), err
 }
 
-func NewCachedArticleRepository(dao article2.ArticleDao, cache cache.ArticleCache, userRepo repository.UserRepository) *CachedArticleRepository {
-	return &CachedArticleRepository{dao: dao, cache: cache, userRepo: userRepo}
+func NewCachedArticleRepository(dao article2.ArticleDao, cache cache.ArticleCache) ArticleRepository {
+	return &CachedArticleRepository{dao: dao, cache: cache}
 }
 
 func (c *CachedArticleRepository) FindPublishedById(ctx context.Context, aid int64) (domain.Article, error) {
@@ -66,10 +66,11 @@ func (c *CachedArticleRepository) FindPublishedById(ctx context.Context, aid int
 	if err != nil {
 		return domain.Article{}, err
 	}
-	user, err := c.userRepo.FindById(ctx, pArt.AuthorId)
-	if err != nil {
-		return domain.Article{}, err
-	}
+	//TODO
+	//user, err := c.userRepo.FindById(ctx, pArt.AuthorId)
+	//if err != nil {
+	//	return domain.Article{}, err
+	//}
 	//这里缓存可有可无？ 读者的缓存一般在文章Publish之后缓存一段时间
 	//读者阅读这篇文章的时候也缓存
 	res := domain.Article{
@@ -79,7 +80,7 @@ func (c *CachedArticleRepository) FindPublishedById(ctx context.Context, aid int
 		Status:  domain.ArticleStatus(pArt.Status),
 		CTime:   pArt.CTime,
 		UTime:   pArt.UTime,
-		Author:  domain.Author{Id: pArt.AuthorId, Name: user.Name},
+		Author:  domain.Author{Id: pArt.AuthorId, Name: "user.Name"},
 	}
 	go func() {
 		err = c.cache.SetPub(ctx, aid, res)
@@ -222,13 +223,14 @@ func (c *CachedArticleRepository) Sync(ctx context.Context, art domain.Article) 
 	}
 	//先判断err，考虑缓存一致性问题，如果数据库没有，那么缓存也应该没有
 	go func() {
-		user, err := c.userRepo.FindById(ctx, art.Author.Id)
-		if err != nil {
-			//找不到user信息，那么后续缓存的信息里也没有user，不能直接用，这里就直接返回了
-			//后续可以在使用缓存的地方检查一下？
-			return
-		}
-		art.Author.Name = user.Name
+		//TODO
+		//user, err := c.userRepo.FindById(ctx, art.Author.Id)
+		//if err != nil {
+		//	//找不到user信息，那么后续缓存的信息里也没有user，不能直接用，这里就直接返回了
+		//	//后续可以在使用缓存的地方检查一下？
+		//	return
+		//}
+		art.Author.Name = "user.Name"
 		err = c.cache.SetPub(ctx, art.Id, art)
 		if err != nil {
 			zap.L().Error("提前设置新发表文章缓存失败", zap.Error(err))

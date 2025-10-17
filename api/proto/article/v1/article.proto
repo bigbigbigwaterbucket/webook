@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-option go_package="../../article;artv1";
+option go_package= "learning_go/webook/api/proto/gen/article/artv1";
+package artv1;
 
 service ArticleService{
   rpc Save(SaveReq) returns(SaveResp);

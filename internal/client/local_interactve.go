@@ -2,13 +2,15 @@ package client
 
 import (
 	"context"
-	"github.com/ecodeclub/ekit/slice"
-	"google.golang.org/grpc"
 	"learning_go/webook/api/proto/gen/interactive/intrv1"
 	"learning_go/webook/interactive/domain"
 	"learning_go/webook/interactive/service"
+
+	"github.com/ecodeclub/ekit/slice"
+	"google.golang.org/grpc"
 )
 
+// LocalInteractiveServiceClient 为了实现灰度发布，把本地服务伪装成rpc服务
 type LocalInteractiveServiceClient struct {
 	svc service.InteractiveService
 }

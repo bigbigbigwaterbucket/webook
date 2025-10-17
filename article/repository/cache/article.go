@@ -67,7 +67,7 @@ func (r *RedisArticleCache) Set(ctx context.Context, art domain.Article) error {
 	return r.client.Set(ctx, r.authorKey(art.Id), artByte, time.Minute).Err()
 }
 
-func NewRedisArticleCache(client redis.Cmdable) *RedisArticleCache {
+func NewRedisArticleCache(client redis.Cmdable) ArticleCache {
 	return &RedisArticleCache{client: client}
 }
 

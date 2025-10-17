@@ -3,4 +3,7 @@ scrape_configs:
     scrape_interval: 5s # 拉取间隔
     scrape_timeout: 3s
     static_configs:
-      - targets: ["host.docker.internal:8085"] # 访问docker外的8085端口（webook服务
+      - targets:
+        - "host.docker.internal:8085" # 访问docker外的8085端口（webook服务
+        - "host.docker.internal:8086" # interactive微服务
+        - "host.docker.internal:8087" # article微服务

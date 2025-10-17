@@ -182,6 +182,6 @@ func (g *GormArticleDao) UpdateById(ctx context.Context, art Article) (int64, er
 	return art.Id, nil
 }
 
-func NewGormArticleDao(db *gorm.DB) *GormArticleDao {
+func NewGormArticleDao(db *gorm.DB) ArticleDao {
 	return &GormArticleDao{db: db}
 }

@@ -14,6 +14,10 @@ type ArticleServiceServer struct {
 	svc service.ArticleService
 }
 
+func NewArticleServiceServer(svc service.ArticleService) *ArticleServiceServer {
+	return &ArticleServiceServer{svc: svc}
+}
+
 func (a *ArticleServiceServer) Save(ctx context.Context, req *artv1.SaveReq) (*artv1.SaveResp, error) {
 	aid, err := a.svc.Save(ctx, a.toDomain(req.GetArticle()))
 	return &artv1.SaveResp{ArticleId: aid}, err
@@ -65,7 +69,7 @@ func (a *ArticleServiceServer) toDomain(article *artv1.Article) domain.Article {
 		Title:   article.Title,
 		Content: article.Content,
 		Author:  domain.Author{Id: article.Author.Id, Name: article.Author.Name},
-		Status:  domain.ArticleStatus(article.AuthorStatus),
+		Status:  domain.ArticleStatus(article.ArticleStatus),
 		CTime:   article.Ctime,
 		UTime:   article.Utime,
 	}
@@ -73,13 +77,13 @@ func (a *ArticleServiceServer) toDomain(article *artv1.Article) domain.Article {
 
 func (a *ArticleServiceServer) toDao(article domain.Article) *artv1.Article {
 	return &artv1.Article{
-		Id:           article.Id,
-		Title:        article.Title,
-		Content:      article.Content,
-		Author:       &artv1.Author{Id: article.Author.Id, Name: article.Author.Name},
-		AuthorStatus: uint32(article.Status),
-		Ctime:        article.CTime,
-		Utime:        article.UTime,
+		Id:            article.Id,
+		Title:         article.Title,
+		Content:       article.Content,
+		Author:        &artv1.Author{Id: article.Author.Id, Name: article.Author.Name},
+		ArticleStatus: uint32(article.Status),
+		Ctime:         article.CTime,
+		Utime:         article.UTime,
 	}
 }
 

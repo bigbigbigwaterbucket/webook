@@ -7,11 +7,12 @@
 package artv1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -77,9 +78,9 @@ type Article struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	Author        *Author                `protobuf:"bytes,4,opt,name=author,proto3" json:"author,omitempty"`
-	ArticleStatus uint32                 `protobuf:"varint,5,opt,name=article_status,json=articleStatus,proto3" json:"article_status,omitempty"`
+	Content       string  `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Author        *Author `protobuf:"bytes,4,opt,name=author,proto3" json:"author,omitempty"`
+	ArticleStatus uint32  `protobuf:"varint,5,opt,name=article_status,json=articleStatus,proto3" json:"article_status,omitempty"`
 	Ctime         int64                  `protobuf:"varint,6,opt,name=ctime,proto3" json:"ctime,omitempty"`
 	Utime         int64                  `protobuf:"varint,7,opt,name=utime,proto3" json:"utime,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -801,26 +802,26 @@ var File_article_proto protoreflect.FileDescriptor
 
 const file_article_proto_rawDesc = "" +
 	"\n" +
-	"\rarticle.proto\",\n" +
+	"\rarticle.proto\x12\x05artv1\",\n" +
 	"\x06Author\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xbd\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xc3\x01\n" +
 	"\aArticle\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\x12\x1f\n" +
-	"\x06author\x18\x04 \x01(\v2\a.AuthorR\x06author\x12%\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12%\n" +
+	"\x06author\x18\x04 \x01(\v2\r.artv1.AuthorR\x06author\x12%\n" +
 	"\x0earticle_status\x18\x05 \x01(\rR\rarticleStatus\x12\x14\n" +
 	"\x05ctime\x18\x06 \x01(\x03R\x05ctime\x12\x14\n" +
-	"\x05utime\x18\a \x01(\x03R\x05utime\"-\n" +
-	"\aSaveReq\x12\"\n" +
-	"\aarticle\x18\x01 \x01(\v2\b.ArticleR\aarticle\")\n" +
+	"\x05utime\x18\a \x01(\x03R\x05utime\"3\n" +
+	"\aSaveReq\x12(\n" +
+	"\aarticle\x18\x01 \x01(\v2\x0e.artv1.ArticleR\aarticle\")\n" +
 	"\bSaveResp\x12\x1d\n" +
 	"\n" +
-	"article_id\x18\x01 \x01(\x03R\tarticleId\"0\n" +
+	"article_id\x18\x01 \x01(\x03R\tarticleId\"6\n" +
 	"\n" +
-	"PublishReq\x12\"\n" +
-	"\aarticle\x18\x01 \x01(\v2\b.ArticleR\aarticle\",\n" +
+	"PublishReq\x12(\n" +
+	"\aarticle\x18\x01 \x01(\v2\x0e.artv1.ArticleR\aarticle\",\n" +
 	"\vPublishResp\x12\x1d\n" +
 	"\n" +
 	"article_id\x18\x01 \x01(\x03R\tarticleId\"E\n" +
@@ -832,33 +833,34 @@ const file_article_proto_rawDesc = "" +
 	"\aListReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x03R\x06offset\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x03R\x05limit\"0\n" +
-	"\bListResp\x12$\n" +
-	"\barticles\x18\x01 \x03(\v2\b.ArticleR\barticles\"+\n" +
+	"\x05limit\x18\x03 \x01(\x03R\x05limit\"6\n" +
+	"\bListResp\x12*\n" +
+	"\barticles\x18\x01 \x03(\v2\x0e.artv1.ArticleR\barticles\"+\n" +
 	"\n" +
 	"GetByIdReq\x12\x1d\n" +
 	"\n" +
-	"article_id\x18\x01 \x01(\x03R\tarticleId\"1\n" +
-	"\vGetByIdResp\x12\"\n" +
-	"\aarticle\x18\x01 \x01(\v2\b.ArticleR\aarticle\"4\n" +
+	"article_id\x18\x01 \x01(\x03R\tarticleId\"7\n" +
+	"\vGetByIdResp\x12(\n" +
+	"\aarticle\x18\x01 \x01(\v2\x0e.artv1.ArticleR\aarticle\"4\n" +
 	"\x13GetPublishedByIdReq\x12\x1d\n" +
 	"\n" +
-	"article_id\x18\x01 \x01(\x03R\tarticleId\":\n" +
-	"\x14GetPublishedByIdResp\x12\"\n" +
-	"\aarticle\x18\x01 \x01(\v2\b.ArticleR\aarticle\".\n" +
+	"article_id\x18\x01 \x01(\x03R\tarticleId\"@\n" +
+	"\x14GetPublishedByIdResp\x12(\n" +
+	"\aarticle\x18\x01 \x01(\v2\x0e.artv1.ArticleR\aarticle\".\n" +
 	"\vGetByIdsReq\x12\x1f\n" +
 	"\varticle_ids\x18\x01 \x03(\x03R\n" +
-	"articleIds\"4\n" +
-	"\fGetByIdsResp\x12$\n" +
-	"\barticles\x18\x01 \x03(\v2\b.ArticleR\barticles2\xa9\x02\n" +
-	"\x0eArticleService\x12\x1b\n" +
-	"\x04Save\x12\b.SaveReq\x1a\t.SaveResp\x12$\n" +
-	"\aPublish\x12\v.PublishReq\x1a\f.PublishResp\x12'\n" +
-	"\bWithdraw\x12\f.WithdrawReq\x1a\r.WithdrawResp\x12\x1b\n" +
-	"\x04List\x12\b.ListReq\x1a\t.ListResp\x12$\n" +
-	"\aGetById\x12\v.GetByIdReq\x1a\f.GetByIdResp\x12?\n" +
-	"\x10GetPublishedById\x12\x14.GetPublishedByIdReq\x1a\x15.GetPublishedByIdResp\x12'\n" +
-	"\bGetByIds\x12\f.GetByIdsReq\x1a\r.GetByIdsRespB2B\fArticleProtoP\x01Z learning_go/webook/api/proto/genb\x06proto3"
+	"articleIds\":\n" +
+	"\fGetByIdsResp\x12*\n" +
+	"\barticles\x18\x01 \x03(\v2\x0e.artv1.ArticleR\barticles2\xfd\x02\n" +
+	"\x0eArticleService\x12'\n" +
+	"\x04Save\x12\x0e.artv1.SaveReq\x1a\x0f.artv1.SaveResp\x120\n" +
+	"\aPublish\x12\x11.artv1.PublishReq\x1a\x12.artv1.PublishResp\x123\n" +
+	"\bWithdraw\x12\x12.artv1.WithdrawReq\x1a\x13.artv1.WithdrawResp\x12'\n" +
+	"\x04List\x12\x0e.artv1.ListReq\x1a\x0f.artv1.ListResp\x120\n" +
+	"\aGetById\x12\x11.artv1.GetByIdReq\x1a\x12.artv1.GetByIdResp\x12K\n" +
+	"\x10GetPublishedById\x12\x1a.artv1.GetPublishedByIdReq\x1a\x1b.artv1.GetPublishedByIdResp\x123\n" +
+	"\bGetByIds\x12\x12.artv1.GetByIdsReq\x1a\x13.artv1.GetByIdsRespBo\n" +
+	"\tcom.artv1B\fArticleProtoP\x01Z learning_go/webook/api/proto/gen\xa2\x02\x03AXX\xaa\x02\x05Artv1\xca\x02\x05Artv1\xe2\x02\x11Artv1\\GPBMetadata\xea\x02\x05Artv1b\x06proto3"
 
 var (
 	file_article_proto_rawDescOnce sync.Once
@@ -874,45 +876,45 @@ func file_article_proto_rawDescGZIP() []byte {
 
 var file_article_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_article_proto_goTypes = []any{
-	(*Author)(nil),               // 0: Author
-	(*Article)(nil),              // 1: Article
-	(*SaveReq)(nil),              // 2: SaveReq
-	(*SaveResp)(nil),             // 3: SaveResp
-	(*PublishReq)(nil),           // 4: PublishReq
-	(*PublishResp)(nil),          // 5: PublishResp
-	(*WithdrawReq)(nil),          // 6: WithdrawReq
-	(*WithdrawResp)(nil),         // 7: WithdrawResp
-	(*ListReq)(nil),              // 8: ListReq
-	(*ListResp)(nil),             // 9: ListResp
-	(*GetByIdReq)(nil),           // 10: GetByIdReq
-	(*GetByIdResp)(nil),          // 11: GetByIdResp
-	(*GetPublishedByIdReq)(nil),  // 12: GetPublishedByIdReq
-	(*GetPublishedByIdResp)(nil), // 13: GetPublishedByIdResp
-	(*GetByIdsReq)(nil),          // 14: GetByIdsReq
-	(*GetByIdsResp)(nil),         // 15: GetByIdsResp
+	(*Author)(nil),               // 0: artv1.Author
+	(*Article)(nil),              // 1: artv1.Article
+	(*SaveReq)(nil),              // 2: artv1.SaveReq
+	(*SaveResp)(nil),             // 3: artv1.SaveResp
+	(*PublishReq)(nil),           // 4: artv1.PublishReq
+	(*PublishResp)(nil),          // 5: artv1.PublishResp
+	(*WithdrawReq)(nil),          // 6: artv1.WithdrawReq
+	(*WithdrawResp)(nil),         // 7: artv1.WithdrawResp
+	(*ListReq)(nil),              // 8: artv1.ListReq
+	(*ListResp)(nil),             // 9: artv1.ListResp
+	(*GetByIdReq)(nil),           // 10: artv1.GetByIdReq
+	(*GetByIdResp)(nil),          // 11: artv1.GetByIdResp
+	(*GetPublishedByIdReq)(nil),  // 12: artv1.GetPublishedByIdReq
+	(*GetPublishedByIdResp)(nil), // 13: artv1.GetPublishedByIdResp
+	(*GetByIdsReq)(nil),          // 14: artv1.GetByIdsReq
+	(*GetByIdsResp)(nil),         // 15: artv1.GetByIdsResp
 }
 var file_article_proto_depIdxs = []int32{
-	0,  // 0: Article.author:type_name -> Author
-	1,  // 1: SaveReq.article:type_name -> Article
-	1,  // 2: PublishReq.article:type_name -> Article
-	1,  // 3: ListResp.articles:type_name -> Article
-	1,  // 4: GetByIdResp.article:type_name -> Article
-	1,  // 5: GetPublishedByIdResp.article:type_name -> Article
-	1,  // 6: GetByIdsResp.articles:type_name -> Article
-	2,  // 7: ArticleService.Save:input_type -> SaveReq
-	4,  // 8: ArticleService.Publish:input_type -> PublishReq
-	6,  // 9: ArticleService.Withdraw:input_type -> WithdrawReq
-	8,  // 10: ArticleService.List:input_type -> ListReq
-	10, // 11: ArticleService.GetById:input_type -> GetByIdReq
-	12, // 12: ArticleService.GetPublishedById:input_type -> GetPublishedByIdReq
-	14, // 13: ArticleService.GetByIds:input_type -> GetByIdsReq
-	3,  // 14: ArticleService.Save:output_type -> SaveResp
-	5,  // 15: ArticleService.Publish:output_type -> PublishResp
-	7,  // 16: ArticleService.Withdraw:output_type -> WithdrawResp
-	9,  // 17: ArticleService.List:output_type -> ListResp
-	11, // 18: ArticleService.GetById:output_type -> GetByIdResp
-	13, // 19: ArticleService.GetPublishedById:output_type -> GetPublishedByIdResp
-	15, // 20: ArticleService.GetByIds:output_type -> GetByIdsResp
+	0,  // 0: artv1.Article.author:type_name -> artv1.Author
+	1,  // 1: artv1.SaveReq.article:type_name -> artv1.Article
+	1,  // 2: artv1.PublishReq.article:type_name -> artv1.Article
+	1,  // 3: artv1.ListResp.articles:type_name -> artv1.Article
+	1,  // 4: artv1.GetByIdResp.article:type_name -> artv1.Article
+	1,  // 5: artv1.GetPublishedByIdResp.article:type_name -> artv1.Article
+	1,  // 6: artv1.GetByIdsResp.articles:type_name -> artv1.Article
+	2,  // 7: artv1.ArticleService.Save:input_type -> artv1.SaveReq
+	4,  // 8: artv1.ArticleService.Publish:input_type -> artv1.PublishReq
+	6,  // 9: artv1.ArticleService.Withdraw:input_type -> artv1.WithdrawReq
+	8,  // 10: artv1.ArticleService.List:input_type -> artv1.ListReq
+	10, // 11: artv1.ArticleService.GetById:input_type -> artv1.GetByIdReq
+	12, // 12: artv1.ArticleService.GetPublishedById:input_type -> artv1.GetPublishedByIdReq
+	14, // 13: artv1.ArticleService.GetByIds:input_type -> artv1.GetByIdsReq
+	3,  // 14: artv1.ArticleService.Save:output_type -> artv1.SaveResp
+	5,  // 15: artv1.ArticleService.Publish:output_type -> artv1.PublishResp
+	7,  // 16: artv1.ArticleService.Withdraw:output_type -> artv1.WithdrawResp
+	9,  // 17: artv1.ArticleService.List:output_type -> artv1.ListResp
+	11, // 18: artv1.ArticleService.GetById:output_type -> artv1.GetByIdResp
+	13, // 19: artv1.ArticleService.GetPublishedById:output_type -> artv1.GetPublishedByIdResp
+	15, // 20: artv1.ArticleService.GetByIds:output_type -> artv1.GetByIdsResp
 	14, // [14:21] is the sub-list for method output_type
 	7,  // [7:14] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name

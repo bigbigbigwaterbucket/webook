@@ -1,0 +1,11 @@
+mysql:
+  dsn: "root:root@tcp(localhost:13316)/webook_art"
+
+redis:
+  addr: "localhost:6379"
+
+grpc:
+  server:
+    Port: 8100
+    etcdAddrs:
+      - "localhost:12379"

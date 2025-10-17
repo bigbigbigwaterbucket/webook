@@ -8,6 +8,7 @@ package artv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,13 +20,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ArticleService_Save_FullMethodName             = "/ArticleService/Save"
-	ArticleService_Publish_FullMethodName          = "/ArticleService/Publish"
-	ArticleService_Withdraw_FullMethodName         = "/ArticleService/Withdraw"
-	ArticleService_List_FullMethodName             = "/ArticleService/List"
-	ArticleService_GetById_FullMethodName          = "/ArticleService/GetById"
-	ArticleService_GetPublishedById_FullMethodName = "/ArticleService/GetPublishedById"
-	ArticleService_GetByIds_FullMethodName         = "/ArticleService/GetByIds"
+	ArticleService_Save_FullMethodName             = "/artv1.ArticleService/Save"
+	ArticleService_Publish_FullMethodName          = "/artv1.ArticleService/Publish"
+	ArticleService_Withdraw_FullMethodName         = "/artv1.ArticleService/Withdraw"
+	ArticleService_List_FullMethodName             = "/artv1.ArticleService/List"
+	ArticleService_GetById_FullMethodName          = "/artv1.ArticleService/GetById"
+	ArticleService_GetPublishedById_FullMethodName = "/artv1.ArticleService/GetPublishedById"
+	ArticleService_GetByIds_FullMethodName         = "/artv1.ArticleService/GetByIds"
 )
 
 // ArticleServiceClient is the client API for ArticleService service.
@@ -312,7 +313,7 @@ func _ArticleService_GetByIds_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ArticleService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "ArticleService",
+	ServiceName: "artv1.ArticleService",
 	HandlerType: (*ArticleServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

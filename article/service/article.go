@@ -87,7 +87,7 @@ func (a *ArticleServiceI) PublishV0(ctx context.Context, art domain.Article) err
 	return err
 }
 
-func NewArticleServiceI(repo article.ArticleRepository) *ArticleServiceI {
+func NewArticleServiceI(repo article.ArticleRepository) ArticleService {
 	return &ArticleServiceI{repo: repo}
 }
 

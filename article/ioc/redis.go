@@ -17,10 +17,9 @@ func InitRedis() redis.Cmdable {
 	if err != nil {
 		panic(err)
 	}
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: config1.Addr})
+	redisClient := redis.NewClient(&redis.Options{Addr: config1.Addr})
 	redisClient.AddHook(redisx.NewPrometheusHook(prometheus.SummaryOpts{
-		Namespace: "waterbucket", Subsystem: "interactive",
+		Namespace: "waterbucket", Subsystem: "article",
 		Name: "redis", Help: "redis执行时间检测与是否命中检测",
 		Objectives: map[float64]float64{
 			0.5:  0.01,

@@ -1,16 +1,16 @@
 package ioc
 
 import (
+	"learning_go/webook/internal/repository/dao"
+	"learning_go/webook/pkg/gormx"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	glogger "gorm.io/gorm/logger"
 	gormPrometheus "gorm.io/plugin/prometheus"
-	"learning_go/webook/internal/repository/dao"
-	"learning_go/webook/pkg/gormx"
-	"time"
 )
 
 func InitSrcDB() SrcDB {
@@ -46,13 +46,15 @@ func InitDB(key string) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
-	db, err := gorm.Open(mysql.Open(config1.DSN), &gorm.Config{Logger: glogger.New(gormLoggerFunc(zap.L().Debug),
-		glogger.Config{
-			LogLevel:                  glogger.Info,
-			SlowThreshold:             time.Millisecond * 10, //慢启动阈值，记录哪些sql执行时间慢于10ms
-			IgnoreRecordNotFoundError: true,                  //是否忽略record没找到错误，这在某些情况下是比较常见的
-			// ParameterizedQueries:      true,将插入的数据屏蔽掉，安全考虑
-		})})
+	db, err := gorm.Open(mysql.Open(config1.DSN))
+	//&gorm.Config{Logger: glogger.New(gormLoggerFunc(zap.L().Debug),
+	//glogger.Config{
+	//	LogLevel:                  glogger.Info,
+	//	SlowThreshold:             time.Millisecond * 10, //慢启动阈值，记录哪些sql执行时间慢于10ms
+	//	IgnoreRecordNotFoundError: true,                  //是否忽略record没找到错误，这在某些情况下是比较常见的
+	//	// ParameterizedQueries:      true,将插入的数据屏蔽掉，安全考虑
+	//})},
+
 	if err != nil {
 		panic(err)
 	}

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/fsnotify/fsnotify"
@@ -14,40 +12,16 @@ import (
 
 func main() {
 	initViper()
-	initPrometheus()
 	initLogger()
+	initPrometheus()
 	app := InitApp()
-	for _, consumer := range app.consumers {
-		err := consumer.Start()
-		if err != nil {
-			panic(err)
-		}
-	}
-	fmt.Printf("server %#v\n", app.webServer)
-	go func() {
-		err := app.webServer.Run(":8091")
-		log.Println(err)
-	}()
 	err := app.server.Serve()
-	log.Println(err)
+	zap.L().Error("", zap.Error(err))
 }
-
-//func mainV1() {
-//	initViper()
-//	server := grpc2.NewServer()
-//	intrService := InitGRPCService()
-//	v1.RegisterInteractiveServiceServer(server, intrService)
-//	l, err := net.Listen("tcp", ":8090")
-//	if err != nil {
-//		panic(err)
-//	}
-//	err = server.Serve(l)
-//	zap.L().Error("微服务interactive错误", zap.Error(err))
-//}
 
 func initViper() {
 	//从程序运行参数program arguments那读取配置参数,value是默认值，返回的是地址，说明后续pflag还会修改指针指向的值
-	cp := pflag.String("config", "./webook/interactive/config", "指定配置文件路径")
+	cp := pflag.String("config", "./webook/article/config", "指定配置文件路径")
 	pflag.Parse() //调用该函数对cp赋值
 	println(*cp)
 	//路径、文件名、文件类型配置
@@ -81,7 +55,7 @@ func initLogger() {
 func initPrometheus() {
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		err := http.ListenAndServe(":8086", nil)
+		err := http.ListenAndServe(":8087", nil)
 		zap.L().Error("err", zap.Error(err))
 	}()
 }

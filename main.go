@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"learning_go/webook/api/proto/gen/article/artv1"
 	"learning_go/webook/api/proto/gen/interactive/intrv1"
 	"learning_go/webook/article/repository/article"
 	cache3 "learning_go/webook/article/repository/cache"
@@ -194,8 +195,8 @@ func main() {
 	wechatService := wechat.NewWechatService("wx7256bc69ab349c72", "secret")
 	articleDao := article2.NewGormArticleDao(db)
 	articleCache := cache3.NewRedisArticleCache(redisClient)
-	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache, userRepository)
-	articleService := service3.NewArticleServiceI(articleRepository)
+	articleRepository := article.NewCachedArticleRepository(articleDao, articleCache)
+	_ = service3.NewArticleServiceI(articleRepository)
 	interactiveDao := dao2.NewGORMInteractiveDao(db)
 	interactiveCache := cache2.NewRedisInteractiveCache(redisClient)
 	interactiveRepository := repository2.NewCachedInteractiveRepository(time.Minute*10, interactiveDao, interactiveCache)
@@ -204,7 +205,14 @@ func main() {
 	localRankingCache := cache.NewLocalRankingCache(time.Minute * 10) //这里三数据的本地缓存过期时间对齐redis
 	rankingRepo := repository.NewOnlyCachedRankingRepository(redisRankingCache, localRankingCache)
 
-	//grpc+local interactiveService
+	//etcd实现微服务注册发现
+	etcdClient, err := etcdv3.New(etcdv3.Config{Endpoints: []string{"localhost:12379"}})
+	if err != nil {
+		panic(err)
+	}
+	bd, err := resolver.NewBuilder(etcdClient)
+
+	//grpc+local interactiveService viper监听阈值实现灰度发布
 	type grpcConfig struct {
 		Addr      string `yaml:"addr"`
 		Secure    bool   `yaml:"secure"`
@@ -232,15 +240,9 @@ func main() {
 	//	panic(err)
 	//}
 
-	etcdClient, err := etcdv3.New(etcdv3.Config{Endpoints: []string{"localhost:12379"}})
-	if err != nil {
-		panic(err)
-	}
-	bd, err := resolver.NewBuilder(etcdClient)
 	//connect to the RPCServer by etcd.
-	cc, err := grpc.Dial("etcd:///service/interactive", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	remoteInteractive := intrv1.NewInteractiveServiceClient(cc)
+	intrCc, err := grpc.Dial("etcd:///service/interactive", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	remoteInteractive := intrv1.NewInteractiveServiceClient(intrCc)
 	gRPCInteractiveService := client2.NewGreyScaleInteractiveServiceClient(localInteractive, remoteInteractive)
 	viper.OnConfigChange(func(in fsnotify.Event) {
 		err = viper.UnmarshalKey("grpc.client.intr", &config2)
@@ -248,6 +250,26 @@ func main() {
 	})
 
 	rankingService := service.NewRankingServiceI(articleRepository, gRPCInteractiveService, rankingRepo)
+
+	//grpc+local articleService
+	var config3 grpcConfig
+	err = viper.UnmarshalKey("grpc.client.art", &config3)
+	if err != nil {
+		panic(err)
+	}
+	opts = nil //reset
+	if config3.Secure {
+		//使用https的tls证书
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+	opts = append(opts, grpc.WithContextDialer(
+		func(ctx context.Context, addr string) (net.Conn, error) {
+			return net.Dial("tcp", addr) // 强制直连，不走代理
+		}))
+	//connect to the RPCServer by etcd.
+	artCc, err := grpc.Dial("etcd:///service/article", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	remoteArticle := artv1.NewArticleServiceClient(artCc)
 
 	//consumer
 	var address = []string{"localhost:9094"}
@@ -265,7 +287,7 @@ func main() {
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
 	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
 	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
-	articleHandler := web.NewArticleHandler(articleService, gRPCInteractiveService)
+	articleHandler := web.NewArticleHandler(remoteArticle, gRPCInteractiveService)
 	// 用来测试prometheus的观测功能的接口，方便给wrk压测
 	observeHandler := web.NewObservabilityHandler()
 
