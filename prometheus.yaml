@@ -7,3 +7,4 @@ scrape_configs:
         - "host.docker.internal:8085" # 访问docker外的8085端口（webook服务
         - "host.docker.internal:8086" # interactive微服务
         - "host.docker.internal:8087" # article微服务
+        - "host.docker.internal:8088" # user微服务

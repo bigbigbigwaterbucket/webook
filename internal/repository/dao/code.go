@@ -2,9 +2,11 @@ package dao
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
-	"time"
 )
 
 type CodeDao interface {
@@ -29,7 +31,7 @@ func (c *CodeDaoI) Insert(ctx context.Context, code Code) error {
 	if mysqlErr, ok := err.(*mysql.MySQLError); ok {
 		const uniqueConflictsErrNo = 1062 //唯一索引冲突
 		if mysqlErr.Number == uniqueConflictsErrNo {
-			return ErrUserDuplicate
+			return errors.New("唯一索引冲突")
 		} //验证码冲突
 	}
 	return err

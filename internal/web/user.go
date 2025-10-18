@@ -2,16 +2,18 @@ package web
 
 import (
 	"fmt"
+	"learning_go/webook/api/proto/gen/user/userv1"
+	"learning_go/webook/internal/repository/cache"
+	"learning_go/webook/internal/service"
+	"learning_go/webook/internal/web/ijwt"
+	service2 "learning_go/webook/user/service" //TODO:这里也是设计不合理，依赖了微服务化的error包变量，要改的话要么统一errors包，要么用grpc的错误码
+	"net/http"
+
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/cache"
-	"learning_go/webook/internal/service"
-	"learning_go/webook/internal/web/ijwt"
-	"net/http"
 	//"regexp"
 )
 
@@ -22,7 +24,7 @@ var _ handler = (*UserHandler)(nil)
 
 // UserHandler 定义跟用户有关的路由
 type UserHandler struct {
-	svc            service.UserService
+	svc            userv1.UserServiceClient
 	codeSvc        service.CodeService
 	EmailRegexp    *regexp.Regexp
 	PasswordRegexp *regexp.Regexp
@@ -30,7 +32,7 @@ type UserHandler struct {
 	ijwt.JwtHandler
 }
 
-func NewUserHandler(svc service.UserService, codeSvc service.CodeService, jwt ijwt.JwtHandler) (uh *UserHandler) {
+func NewUserHandler(svc userv1.UserServiceClient, codeSvc service.CodeService, jwt ijwt.JwtHandler) (uh *UserHandler) {
 	const (
 		emailString    = "^[A-Za-z0-9\\u4e00-\\u9fa5]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$"
 		passwordString = ""
@@ -120,13 +122,13 @@ func (this *UserHandler) LoginSmsCode(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
-	user, err := this.svc.FindOrCreateByPhone(ctx, req.Phone)
+	FindOrCreateByPhoneResp, err := this.svc.FindOrCreateByPhone(ctx, &userv1.FindOrCreateByPhoneReq{Phone: req.Phone})
 	if err != nil {
 		//ctx.json返回的是结构体序列化后的json串
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
 	}
-	err = this.SetLoginToken(ctx, user.Id)
+	err = this.SetLoginToken(ctx, FindOrCreateByPhoneResp.User.Id)
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "系统错误"})
 		return
@@ -199,11 +201,11 @@ func (this *UserHandler) SignUp(ctx *gin.Context) {
 		return
 	}
 
-	err = this.svc.SignUp(ctx, domain.User{Email: req.Email, Password: req.Password})
+	_, err = this.svc.SignUp(ctx, &userv1.SignUpReq{User: &userv1.User{Email: req.Email, Password: req.Password}})
 
 	if err != nil {
 		//这个eer其实包含了提示字符串。。。
-		if err == service.ErrUserDuplicate {
+		if err == service2.ErrUserDuplicate { //errors.New("1")与errors.New("1")并不相等
 			ctx.String(200, "邮箱冲突")
 		} else {
 			ctx.String(http.StatusOK, "系统错误")
@@ -223,9 +225,9 @@ func (this *UserHandler) LoginJWT(ctx *gin.Context) {
 	if err := ctx.Bind(&req); err != nil {
 		return
 	}
-	user, err := this.svc.Login(ctx, domain.User{Email: req.Email, Password: req.Password})
+	loginResp, err := this.svc.Login(ctx, &userv1.LoginReq{User: &userv1.User{Email: req.Email, Password: req.Password}})
 	if err != nil {
-		if err == service.ErrInvalidUserOrPassword {
+		if err == service2.ErrInvalidUserOrPassword {
 			ctx.String(http.StatusOK, "用户名或密码错误")
 			return
 		} else {
@@ -233,7 +235,7 @@ func (this *UserHandler) LoginJWT(ctx *gin.Context) {
 		}
 	}
 
-	err = this.SetLoginToken(ctx, user.Id)
+	err = this.SetLoginToken(ctx, loginResp.User.Id)
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
@@ -251,9 +253,9 @@ func (this *UserHandler) Login(ctx *gin.Context) {
 	if err := ctx.Bind(&req); err != nil {
 		return
 	}
-	user, err := this.svc.Login(ctx, domain.User{Email: req.Email, Password: req.Password})
+	loginResp, err := this.svc.Login(ctx, &userv1.LoginReq{User: &userv1.User{Email: req.Email, Password: req.Password}})
 	if err != nil {
-		if err == service.ErrInvalidUserOrPassword {
+		if err == service2.ErrInvalidUserOrPassword {
 			ctx.String(http.StatusOK, "用户名或密码错误")
 			return
 		} else {
@@ -264,7 +266,7 @@ func (this *UserHandler) Login(ctx *gin.Context) {
 	//设置session
 	sess := sessions.Default(ctx)
 	//设置放在session里的值
-	sess.Set("userId", user.Id)
+	sess.Set("userId", loginResp.User.Id)
 	sess.Options(sessions.Options{
 		MaxAge: 30 * 60, //max age除了控制cookie中的ssid字段，还控制redis里key value值的过期时间
 		// Secure: true, 只能通过https协议访问才能设置session_id和session登录信息
@@ -301,15 +303,15 @@ func (this *UserHandler) Profile(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "没有登录信息!")
 		return
 	}
-	user, err := this.svc.Profile(ctx, userId)
+	profileResp, err := this.svc.Profile(ctx, &userv1.ProfileReq{UserId: userId})
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "获取用户信息失败")
 		return
 	}
 	resp := UserResp{
-		Name:      user.Name,
-		Birthday:  user.Birthday,
-		Introduce: user.Introduce,
+		Name:      profileResp.User.Name,
+		Birthday:  profileResp.User.Birthday,
+		Introduce: profileResp.User.Introduce,
 	}
 
 	ctx.JSON(http.StatusOK, resp)
@@ -349,15 +351,15 @@ func (this *UserHandler) ProfileJWT(ctx *gin.Context) {
 		ctx.String(http.StatusInternalServerError, "获取用户信息失败")
 		return
 	}
-	user, err := this.svc.Profile(ctx, userIdReal)
+	profileResp, err := this.svc.Profile(ctx, &userv1.ProfileReq{UserId: userIdReal})
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "获取用户信息失败")
 		return
 	}
 	resp := UserResp{
-		Name:      user.Name,
-		Birthday:  user.Birthday,
-		Introduce: user.Introduce,
+		Name:      profileResp.User.Name,
+		Birthday:  profileResp.User.Birthday,
+		Introduce: profileResp.User.Introduce,
 	}
 
 	ctx.JSON(http.StatusOK, resp)
@@ -404,7 +406,7 @@ func (this *UserHandler) Edit(ctx *gin.Context) {
 		return
 	}
 	//这里从session中找到userId,后续存储数据时就可以找到是哪个用户
-	err = this.svc.Edit(ctx, domain.User{Id: userId, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce})
+	_, err = this.svc.Edit(ctx, &userv1.EditReq{User: &userv1.User{Id: userId, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce}})
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
@@ -448,12 +450,12 @@ func (this *UserHandler) EditJWT(ctx *gin.Context) {
 	if !ok {
 		ctx.String(http.StatusUnauthorized, "尚未登录")
 	}
-	userReal, ok := userId.(int64)
+	userIdReal, ok := userId.(int64)
 	if !ok {
 		ctx.String(http.StatusUnauthorized, "尚未登录")
 	}
 	//这里从session中找到userId,后续存储数据时就可以找到是哪个用户
-	err = this.svc.Edit(ctx, domain.User{Id: userReal, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce})
+	_, err = this.svc.Edit(ctx, &userv1.EditReq{User: &userv1.User{Id: userIdReal, Name: req.Name, Birthday: req.Birthday, Introduce: req.Introduce}})
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return

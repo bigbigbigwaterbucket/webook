@@ -5,17 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"learning_go/webook/internal/repository/cache"
+	"learning_go/webook/internal/service"
+	svcmocks "learning_go/webook/internal/service/mocks"
+	"learning_go/webook/user/domain"
+	service2 "learning_go/webook/user/service"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/cache"
-	"learning_go/webook/internal/service"
-	svcmocks "learning_go/webook/internal/service/mocks"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestEncrypt(t *testing.T) {
@@ -33,7 +35,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		mock func(ctrl *gomock.Controller) (service.UserService, service.CodeService)
+		mock func(ctrl *gomock.Controller) (service2.UserService, service.CodeService)
 
 		reqBuilder func(t *testing.T) *http.Request
 		wantCode   int
@@ -42,7 +44,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		{
 			name: "注册成功",
 			//匿名函数，接收一个ctrl，每次测试都接收，返回该次测试你用到的依赖接口
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				usersvc := svcmocks.NewMockUserService(ctrl)
 				//signup的时候没有用到codesvc，因此预期不应该调用其函数
 				codesvc := svcmocks.NewMockCodeService(ctrl)
@@ -66,7 +68,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "json格式错误",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				return nil, nil
 			},
 			//构造每次测试的请求体
@@ -86,7 +88,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		{
 			name: "邮箱格式不对",
 			//邮箱格式不对时，在web层就应该被拦截，不应该去调用usersvc去执行signup
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				usersvc := svcmocks.NewMockUserService(ctrl)
 				codesvc := svcmocks.NewMockCodeService(ctrl)
 				return usersvc, codesvc
@@ -108,7 +110,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		{
 			name: "两次输入密码不同",
 			//也会被web层拦截
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				return nil, nil
 			},
 			//构造每次测试的请求体
@@ -128,9 +130,9 @@ func TestUserHandler_SignUp(t *testing.T) {
 		{
 			name: "邮箱冲突",
 			//也会被web层拦截
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				usersvc := svcmocks.NewMockUserService(ctrl)
-				usersvc.EXPECT().SignUp(gomock.Any(), gomock.Any()).Return(service.ErrUserDuplicate)
+				usersvc.EXPECT().SignUp(gomock.Any(), gomock.Any()).Return(service2.ErrUserDuplicate)
 				return usersvc, nil
 			},
 			//构造每次测试的请求体
@@ -149,7 +151,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "系统异常",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				usersvc := svcmocks.NewMockUserService(ctrl)
 				usersvc.EXPECT().SignUp(gomock.Any(), gomock.Any()).Return(errors.New("模拟系统异常"))
 				return usersvc, nil
@@ -210,12 +212,12 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 	testCases := []struct {
 		name       string
 		reqBuilder func(t *testing.T) *http.Request
-		mock       func(ctrl *gomock.Controller) (service.UserService, service.CodeService)
+		mock       func(ctrl *gomock.Controller) (service2.UserService, service.CodeService)
 		wantRes    Result
 	}{
 		{
 			name: "登录成功",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)
@@ -238,7 +240,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		},
 		{
 			name: "bind失败",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				return nil, nil
 			},
 			reqBuilder: func(t *testing.T) *http.Request {
@@ -257,7 +259,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		},
 		{
 			name: "验证码错误",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(cache.ErrorCodeNotRight)
@@ -279,7 +281,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		},
 		{
 			name: "验证次数过多",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(cache.ErrorCodeVerifyTooManyTimes)
@@ -301,7 +303,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		},
 		{
 			name: "验证系统错误",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(errors.New("redis错误"))
@@ -323,7 +325,7 @@ func TestUserHandler_LoginSmsCode(t *testing.T) {
 		},
 		{
 			name: "数据库系统错误",
-			mock: func(ctrl *gomock.Controller) (service.UserService, service.CodeService) {
+			mock: func(ctrl *gomock.Controller) (service2.UserService, service.CodeService) {
 				us := svcmocks.NewMockUserService(ctrl)
 				cs := svcmocks.NewMockCodeService(ctrl)
 				cs.EXPECT().Verify(gomock.Any(), "login", gomock.Any(), gomock.Any()).Return(nil)

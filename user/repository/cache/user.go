@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"learning_go/webook/internal/domain"
+	"learning_go/webook/user/domain"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var ErrorKeyNotExist = redis.Nil
@@ -28,7 +29,7 @@ type UserCache interface {
 // A用到了B，B一定是接口
 // A用到了B，B一定是A的字段
 // A用到了B，A绝对不初始化B，而是外面注入
-func NewUserCache(client redis.Cmdable) *RedisUserCache {
+func NewUserCache(client redis.Cmdable) UserCache {
 	return &RedisUserCache{client: client, expiration: time.Minute * 15}
 }
 

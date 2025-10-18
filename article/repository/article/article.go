@@ -5,7 +5,7 @@ import (
 	"learning_go/webook/article/domain"
 	"learning_go/webook/article/repository/cache"
 	article2 "learning_go/webook/article/repository/dao/article"
-	"learning_go/webook/internal/repository"
+	"learning_go/webook/user/repository"
 	"time"
 
 	"github.com/ecodeclub/ekit/slice"
@@ -145,7 +145,7 @@ func (c *CachedArticleRepository) preCache(ctx context.Context, data []domain.Ar
 	if len(data) > 0 && len(data[0].Content) <= contentSizeThreshold {
 		err := c.cache.Set(ctx, data[0])
 		if err != nil {
-			zap.L().Error("首篇文章回写缓存失败", zap.Int64("uid", data[0].Id))
+			zap.L().Error("首篇文章回写缓存失败", zap.Int64("uid", data[0].Id), zap.Error(err))
 		}
 	}
 }

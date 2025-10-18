@@ -2,15 +2,17 @@ package repository
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/cache"
 	cachemocks "learning_go/webook/internal/repository/cache/mocks"
-	"learning_go/webook/internal/repository/dao"
 	daomocks "learning_go/webook/internal/repository/dao/mocks"
+	"learning_go/webook/user/domain"
+	repository2 "learning_go/webook/user/repository"
+	"learning_go/webook/user/repository/cache"
+	"learning_go/webook/user/repository/dao"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestUserRepositoryI_FindById(t *testing.T) {
@@ -26,7 +28,7 @@ func TestUserRepositoryI_FindById(t *testing.T) {
 			name: "数据库找到",
 			mock: func(controller *gomock.Controller) (dao.UserDAO, cache.UserCache) {
 				c := cachemocks.NewMockUserCache(controller)
-				c.EXPECT().Get(gomock.Any(), int64(12)).Return(domain.User{}, ErrUserNotFound)
+				c.EXPECT().Get(gomock.Any(), int64(12)).Return(domain.User{}, repository2.ErrUserNotFound)
 				c.EXPECT().Set(gomock.Any(), domain.User{Id: 12, Ctime: time.UnixMilli(0)}).Return(nil)
 				d := daomocks.NewMockUserDAO(controller)
 				d.EXPECT().FindById(gomock.Any(), int64(12)).Return(dao.User{Id: 12}, nil)
@@ -42,7 +44,7 @@ func TestUserRepositoryI_FindById(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			repo := NewUserRepository(tc.mock(ctrl))
+			repo := repository2.NewUserRepository(tc.mock(ctrl))
 			user, err := repo.FindById(context.Background(), tc.userId)
 			assert.Equal(t, tc.wantUser, user)
 			assert.Equal(t, tc.wantErr, err)

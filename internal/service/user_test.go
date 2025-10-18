@@ -3,14 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	repomocks "learning_go/webook/internal/repository/mocks"
+	"learning_go/webook/user/domain"
+	"learning_go/webook/user/repository"
+	service2 "learning_go/webook/user/service"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository"
-	repomocks "learning_go/webook/internal/repository/mocks"
-	"testing"
-	"time"
 )
 
 func TestUserServiceI_Login(t *testing.T) {
@@ -47,7 +49,7 @@ func TestUserServiceI_Login(t *testing.T) {
 			},
 			user:     domain.User{Email: "123@qq.com", Password: "757268", Ctime: now},
 			wantUser: domain.User{},
-			wantErr:  ErrInvalidUserOrPassword,
+			wantErr:  service2.ErrInvalidUserOrPassword,
 		},
 		{
 			name: "DB错误",
@@ -70,7 +72,7 @@ func TestUserServiceI_Login(t *testing.T) {
 			},
 			user:     domain.User{Email: "123@qq.com", Password: "757268", Ctime: now},
 			wantUser: domain.User{},
-			wantErr:  ErrInvalidUserOrPassword,
+			wantErr:  service2.ErrInvalidUserOrPassword,
 		},
 	}
 	for _, tc := range testCases {
@@ -78,7 +80,7 @@ func TestUserServiceI_Login(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			userRepo := tc.mock(ctrl)
-			userSvc := NewUserService(userRepo)
+			userSvc := service2.NewUserService(userRepo)
 			// context不影响login单元测试，login执行时没有实际用到context
 			user, err := userSvc.Login(context.Background(), tc.user)
 			assert.Equal(t, tc.wantUser, user)

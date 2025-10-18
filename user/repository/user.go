@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository/cache"
-	"learning_go/webook/internal/repository/dao"
+	"learning_go/webook/user/domain"
+	"learning_go/webook/user/repository/cache"
+	"learning_go/webook/user/repository/dao"
 	"time"
 )
 
@@ -28,7 +28,7 @@ type UserRepository interface {
 	Update(ctx context.Context, u domain.User) error
 }
 
-func NewUserRepository(dao dao.UserDAO, cache cache.UserCache) *UserRepositoryI {
+func NewUserRepository(dao dao.UserDAO, cache cache.UserCache) UserRepository {
 	return &UserRepositoryI{Dao: dao, Cache: cache}
 }
 

@@ -1,0 +1,72 @@
+syntax = "proto3";
+option go_package = "learning_go/webook/api/proto/gen/user/userv1;userv1";
+service UserService{
+  rpc Login(LoginReq) returns (LoginResp);
+  rpc SignUp(SignUpReq) returns (SignUpResp);
+  rpc Edit(EditReq) returns(EditResp);
+  rpc Profile(ProfileReq) returns(ProfileResp);
+  rpc FindOrCreateByPhone(FindOrCreateByPhoneReq) returns (FindOrCreateByPhoneResp);
+  rpc FindOrCreateByWechat(FindOrCreateByWechatReq) returns(FindOrCreateByWechatResp);
+}
+
+message WechatInfo{
+  string OpenId  =1;
+  string UnionId =2;
+}
+
+message User{
+  int64 Id=1;
+  string Nickname=2;
+  string Email =3;
+  string Phone =4  ;
+  string Password =5;
+  string Name    =6;
+  string Birthday  =7;
+  string Introduce =8;
+  int64 Ctime   =9;
+  WechatInfo WechatInfo=10;
+}
+
+message LoginReq{
+  User user=1;
+}
+message LoginResp{
+  User user=1;
+}
+
+message SignUpReq{
+  User user=1;
+}
+
+message SignUpResp{
+}
+
+message EditReq{
+  User user=1;
+}
+
+message EditResp{
+}
+
+message ProfileReq{
+  int64 user_id=1;
+}
+message ProfileResp{
+  User user=1;
+}
+
+message FindOrCreateByPhoneReq{
+  string phone=1;
+}
+
+message FindOrCreateByPhoneResp{
+  User user=1;
+}
+
+message FindOrCreateByWechatReq{
+  WechatInfo info=1;
+}
+
+message FindOrCreateByWechatResp{
+  User user=1;
+}

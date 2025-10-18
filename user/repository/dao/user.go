@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
+
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
-	"time"
 )
 
 var (
@@ -30,7 +31,7 @@ type UserDAO interface {
 	Update(ctx context.Context, u User) error
 }
 
-func NewUserDAO(db *gorm.DB) *GormUserDAO {
+func NewUserDAO(db *gorm.DB) UserDAO {
 	return &GormUserDAO{DB: db}
 }
 

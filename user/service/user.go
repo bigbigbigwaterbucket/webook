@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"learning_go/webook/user/domain"
+	"learning_go/webook/user/repository"
+
 	"golang.org/x/crypto/bcrypt"
-	"learning_go/webook/internal/domain"
-	"learning_go/webook/internal/repository"
 )
 
 // 每一层都有自己的邮箱冲突err，这样在测试时可以方便知道是哪一层出的错
@@ -31,7 +32,7 @@ type UserService interface {
 	FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error)
 }
 
-func NewUserService(repo repository.UserRepository) *UserServiceI {
+func NewUserService(repo repository.UserRepository) UserService {
 	return &UserServiceI{Repo: repo}
 }
 

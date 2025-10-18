@@ -3,19 +3,21 @@ package dao
 import (
 	"context"
 	"database/sql"
+	dao2 "learning_go/webook/user/repository/dao"
+	"testing"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"testing"
 )
 
 func TestGormUserDAO_Insert(t *testing.T) {
 	testCases := []struct {
 		name string
-		user User
+		user dao2.User
 		//这里没用gomock，用的格式sqlmock，因此传的不是ctrl
 		mock    func(t *testing.T) *sql.DB
 		wantErr error
@@ -53,7 +55,7 @@ func TestGormUserDAO_Insert(t *testing.T) {
 				//error是一个接口类型，接收指针还是结构体值，看方法接收器是怎么接收的
 				return mockDB
 			},
-			wantErr: ErrUserDuplicate,
+			wantErr: dao2.ErrUserDuplicate,
 			wantId:  10,
 		},
 	}
@@ -73,7 +75,7 @@ func TestGormUserDAO_Insert(t *testing.T) {
 				DisableAutomaticPing: true,
 			})
 			require.NoError(t, err)
-			d := NewUserDAO(db)
+			d := dao2.NewUserDAO(db)
 			err = d.Insert(context.Background(), tc.user)
 			assert.Equal(t, tc.wantErr, err)
 			//assert.Equal(t, tc.wantId, user.Id)

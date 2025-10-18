@@ -11,7 +11,7 @@ package daomocks
 
 import (
 	context "context"
-	dao "learning_go/webook/internal/repository/dao"
+	"learning_go/webook/user/repository/dao"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

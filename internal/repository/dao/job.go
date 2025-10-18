@@ -2,8 +2,9 @@ package dao
 
 import (
 	"context"
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type JobDao interface {
@@ -59,7 +60,10 @@ func (G *GORMJobDao) Preempt(ctx context.Context) (Job, error) {
 	//这里是开一个额外goroutine来取任务，取不到就不会做其他事，因此可以写成无限取任务
 	for {
 		now := time.Now()
-		err := G.db.WithContext(ctx).Model(&Job{}).Where("next_time > ? and status = ?", now.UnixMilli(), JobStatusWaiting).
+		//考虑了续约失败的情况，如果你处于running并且正常运行，那么你utime每refreshDuration都会更新一次，否则认为你运行出错
+		//这类假设refreshDuration为10s内
+		err := G.db.WithContext(ctx).Model(&Job{}).Where("(next_time <= ? and status = ?) or (u_time <= ? and status = ?)",
+			now.UnixMilli(), JobStatusWaiting, now.UnixMilli()-1000*10, JobStatusRunning).
 			First(&res).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -87,6 +91,7 @@ func (G *GORMJobDao) Preempt(ctx context.Context) (Job, error) {
 		if sqlRes.RowsAffected == 0 {
 			continue
 		}
+		return res, nil
 	}
 }
 

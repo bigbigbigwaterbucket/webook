@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"learning_go/webook/api/proto/gen/article/artv1"
 	"learning_go/webook/api/proto/gen/interactive/intrv1"
+	"learning_go/webook/api/proto/gen/user/userv1"
 	"learning_go/webook/article/repository/article"
 	cache3 "learning_go/webook/article/repository/cache"
 	article2 "learning_go/webook/article/repository/dao/article"
@@ -31,6 +32,10 @@ import (
 	webratelimit "learning_go/webook/pkg/ginx/middleware/ratelimit"
 	"learning_go/webook/pkg/ratelimit"
 	"learning_go/webook/pkg/redisx"
+	repository4 "learning_go/webook/user/repository"
+	repository3 "learning_go/webook/user/repository/cache"
+	dao3 "learning_go/webook/user/repository/dao"
+	service4 "learning_go/webook/user/service"
 	"net"
 	"net/http"
 	"strings"
@@ -182,10 +187,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	userDAO := dao.NewUserDAO(db)
-	userCache := cache.NewUserCache(redisClient)
-	userRepository := repository.NewUserRepository(userDAO, userCache)
-	userService := service.NewUserService(userRepository)
+	userDAO := dao3.NewUserDAO(db)
+	userCache := repository3.NewUserCache(redisClient)
+	userRepository := repository4.NewUserRepository(userDAO, userCache)
+	_ = service4.NewUserService(userRepository)
 	smsSvc := memoryTest.NewMemService()
 	//codeMemCache := cache.NewMemCodeCache()
 	codeCache := cache.NewCodeCache(redisClient)
@@ -271,6 +276,26 @@ func main() {
 	artCc, err := grpc.Dial("etcd:///service/article", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	remoteArticle := artv1.NewArticleServiceClient(artCc)
 
+	//grpc+local userService
+	var config4 grpcConfig
+	err = viper.UnmarshalKey("grpc.client.user", &config4)
+	if err != nil {
+		panic(err)
+	}
+	opts = nil //reset
+	if config4.Secure {
+		//使用https的tls证书
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+	opts = append(opts, grpc.WithContextDialer(
+		func(ctx context.Context, addr string) (net.Conn, error) {
+			return net.Dial("tcp", addr) // 强制直连，不走代理
+		}))
+	//connect to the RPCServer by etcd.
+	userCc, err := grpc.Dial("etcd:///service/user", grpc.WithResolvers(bd), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	remoteUser := userv1.NewUserServiceClient(userCc)
+
 	//consumer
 	var address = []string{"localhost:9094"}
 	saramaConfig := sarama.NewConfig()
@@ -285,8 +310,8 @@ func main() {
 	}
 	//web
 	redisJwtHandler := ijwt.NewRedisJwtHandler(redisClient)
-	userHandler := web.NewUserHandler(userService, codeService, redisJwtHandler)
-	wechatHandler := web.NewOAuth2WechatHandler(wechatService, userService, redisJwtHandler)
+	userHandler := web.NewUserHandler(remoteUser, codeService, redisJwtHandler)
+	wechatHandler := web.NewOAuth2WechatHandler(wechatService, remoteUser, redisJwtHandler)
 	articleHandler := web.NewArticleHandler(remoteArticle, gRPCInteractiveService)
 	// 用来测试prometheus的观测功能的接口，方便给wrk压测
 	observeHandler := web.NewObservabilityHandler()

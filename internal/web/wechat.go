@@ -3,24 +3,25 @@ package web
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	uuid "github.com/lithammer/shortuuid/v4"
-	"learning_go/webook/internal/service"
+	"learning_go/webook/api/proto/gen/user/userv1"
 	"learning_go/webook/internal/service/oauth2/wechat"
 	"learning_go/webook/internal/web/ijwt"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	uuid "github.com/lithammer/shortuuid/v4"
 )
 
 type OAuth2WechatHandler struct {
 	wechatsvc wechat.WechatService
-	userSvc   service.UserService
+	userSvc   userv1.UserServiceClient
 	stateName string
 	ijwt.JwtHandler
 }
 
-func NewOAuth2WechatHandler(svc wechat.WechatService, usersvc service.UserService, jwt ijwt.JwtHandler) *OAuth2WechatHandler {
+func NewOAuth2WechatHandler(svc wechat.WechatService, usersvc userv1.UserServiceClient, jwt ijwt.JwtHandler) *OAuth2WechatHandler {
 	return &OAuth2WechatHandler{wechatsvc: svc, userSvc: usersvc, stateName: "jwt-state", JwtHandler: jwt}
 }
 
@@ -65,17 +66,17 @@ func (oauth *OAuth2WechatHandler) Callback(ctx *gin.Context) {
 	//这不应该交给前端做了，获得accesstoken不需要扫码，自己后端解决就可以
 	//总没必要让前端帮你发个请求再把结果给你吧？？？
 	//ctx.JSON(http.StatusOK, Result{Data: url})
-	user, err := oauth.userSvc.FindOrCreateByWechat(ctx, wInfo)
+	resp, err := oauth.userSvc.FindOrCreateByWechat(ctx, &userv1.FindOrCreateByWechatReq{Info: &userv1.WechatInfo{UnionId: wInfo.UnionId, OpenId: wInfo.OpenId}})
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "创建微信用户失败"})
 		return
 	}
-	err = oauth.SetLoginToken(ctx, user.Id)
+	err = oauth.SetLoginToken(ctx, resp.User.Id)
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Msg: "设置token失败"})
 		return
 	}
-	ctx.String(200, "欢迎，"+strconv.FormatInt(user.Id, 10))
+	ctx.String(200, "欢迎，"+strconv.FormatInt(resp.User.Id, 10))
 }
 
 func (oauth *OAuth2WechatHandler) VerifyState(ctx *gin.Context) error {

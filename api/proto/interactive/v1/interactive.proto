@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package="learning_go/webook/api/proto/gen/interactive/intrv1;";  //;intrv1尝试指定生成的包名，但是似乎没成功
+option go_package="learning_go/webook/api/proto/gen/interactive/intrv1;intrv1";  //;intrv1尝试指定生成的包名，但是似乎没成功
 package intrv1;
 
 service InteractiveService {
