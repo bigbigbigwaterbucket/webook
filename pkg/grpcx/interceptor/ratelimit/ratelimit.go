@@ -32,6 +32,17 @@ func (b *RatelimitInterceptorBuilder) BuildServerInterceptor() grpc.UnaryServerI
 	}
 }
 
+// 结合限流策略，用于具体业务的降级
+func (b *RatelimitInterceptorBuilder) BuildTagServerInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		limit, er := b.limiter.Limit(ctx, b.key)
+		if er != nil || limit {
+			ctx = context.WithValue(ctx, "limit", "true")
+		}
+		return handler(ctx, req)
+	}
+}
+
 // 在客户端限流
 func (b *RatelimitInterceptorBuilder) BuildClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
