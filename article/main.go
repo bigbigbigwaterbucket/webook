@@ -41,6 +41,7 @@ func initViper() {
 }
 
 func initLogger() {
+	//development是开发阶段的日志输出，会输出debug级及以上的日志
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)

@@ -33,6 +33,7 @@ func (p *PickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
 			weight, _ := weightVal.(float64)
 			cn.weight = int(weight)
 			cn.currentWeight = cn.weight //初始化值为weight
+			cn.labels = mt["labels"].([]string)
 		}
 		conns = append(conns, cn)
 	}
@@ -120,4 +121,5 @@ type conn struct {
 	currentWeight int
 	available     bool
 	group         string //为分组考虑，加入有vip客户端节点
+	labels        []string
 }
