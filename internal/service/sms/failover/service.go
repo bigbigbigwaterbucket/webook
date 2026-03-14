@@ -32,9 +32,9 @@ func (f *FailoverSmsService) Send(ctx context.Context, tpl string, args []string
 
 // 轮询
 func (f *FailoverSmsService) SendV1(ctx context.Context, tpl string, args []string, number ...string) error {
-	atomic.AddUint64(&f.idx, 1) //自增原子操作，加之前和之后自动加锁解锁
+	idx := atomic.AddUint64(&f.idx, 1) //自增原子操作，加之前和之后自动加锁解锁
 	length := uint64(len(f.svcs))
-	for i := f.idx; i < f.idx+length; i++ {
+	for i := idx; i < idx+length; i++ {
 		err := f.svcs[int(i%length)].Send(ctx, tpl, args, number...)
 		switch err {
 		case nil:

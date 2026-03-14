@@ -3,16 +3,17 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"github.com/IBM/sarama"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 	"learning_go/webook/pkg/ginx"
 	"learning_go/webook/pkg/gormx"
 	"learning_go/webook/pkg/migrator"
 	"learning_go/webook/pkg/migrator/events/fixer"
 	"learning_go/webook/pkg/migrator/validator"
 	"time"
+
+	"github.com/IBM/sarama"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 const MigratorTopic = "migrator_topic"

@@ -43,7 +43,7 @@ package web
 //			//http通信传输的数据都是字节流[]byte，reader/writer多了缓冲区的字节读/写器等
 //			req, err := http.NewRequest(http.MethodPost, "/articles/publish", bytes.NewBuffer([]byte(tc.reqBody)))
 //			assert.NoError(t, err)
-//			//这里请求头别忘记设置，gin的bind方法是通过请求头解析bytes数据的
+//			//这里请求头格式别忘记设置，gin的bind方法是通过请求头解析bytes数据的
 //			req.Header.Set("Content-Type", "application/json")
 //			resp := httptest.NewRecorder()
 //			server.ServeHTTP(resp, req)

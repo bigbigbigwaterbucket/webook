@@ -19,7 +19,11 @@ type CommentRepository interface {
 }
 
 type CachedCommentRepository struct {
-	dao dao.GORMCommentDao
+	dao dao.CommentDao
+}
+
+func NewCachedCommentRepository(dao dao.CommentDao) CommentRepository {
+	return &CachedCommentRepository{dao: dao}
 }
 
 func (c *CachedCommentRepository) FindCommentByBiz(ctx context.Context, biz string, bizId int64, minId int64, limit int64) ([]domain.Comment, error) {
@@ -37,8 +41,9 @@ func (c *CachedCommentRepository) FindCommentByBiz(ctx context.Context, biz stri
 	})
 	var eg errgroup.Group
 	for i, d := range daos {
-		i := i
-		d := d
+		//go 1.22之后range循环会创建临时变量了
+		//i := i
+		//d := d
 		//注意循环并发的变量冲突问题（第二个并发循环用的是上一个循环的临时变量
 		eg.Go(func() error {
 			var childs []dao.CommentEntity
@@ -52,7 +57,7 @@ func (c *CachedCommentRepository) FindCommentByBiz(ctx context.Context, biz stri
 			return nil
 		})
 	}
-	return res, nil
+	return res, eg.Wait()
 }
 
 func (c *CachedCommentRepository) Insert(ctx context.Context, comment domain.Comment) error {

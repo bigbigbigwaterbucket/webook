@@ -2,9 +2,10 @@ package logger
 
 import (
 	"bytes"
-	"github.com/gin-gonic/gin"
 	"io"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type MiddlewareBuilder struct {
@@ -46,7 +47,7 @@ func (b *MiddlewareBuilder) Build() gin.HandlerFunc {
 		}
 		//为了获取gin的响应体返回值，需要装饰gin的Writer结构体
 		if b.allowRespBody {
-			ctx.Writer = responseWriter{ResponseWriter: ctx.Writer, al: al} //传入一个ctx自带的writer结构体，组合接口中 没有被覆盖的方法就会调用writer的方法
+			ctx.Writer = responseWriter{ResponseWriter: ctx.Writer, al: al} //传入一个ctx自带的writer结构体，组合接口中 没有被覆盖的方法就会调用writer自己的方法
 		}
 
 		//在后续业务执行完后调用日志输出函数，具体咋输出由外部传入

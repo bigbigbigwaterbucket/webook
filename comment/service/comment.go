@@ -15,7 +15,11 @@ type CommentService interface {
 }
 
 type CommentServiceI struct {
-	repo repository.CachedCommentRepository
+	repo repository.CommentRepository
+}
+
+func NewCommentServiceI(repo repository.CommentRepository) CommentService {
+	return &CommentServiceI{repo: repo}
 }
 
 func (c *CommentServiceI) GetCommentList(ctx context.Context, biz string, bizId int64, minId int64, limit int64) ([]domain.Comment, error) {

@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+option go_package= "learning_go/webook/api/proto/gen/comment/comv1;comv1";
+package comv1;
+
+service CommentService{
+    rpc GetCommentList(GetCommentListReq) returns (GetCommentListResp);
+    rpc GetMoreReplies(GetMoreRepliesReq) returns (GetMoreRepliesResp);
+    rpc CreateComment(CreateCommentReq) returns (CreateCommentResp);
+    rpc DeleteComment(DeleteCommentReq) returns (DeleteCommentResp);
+}
+
+message Comment{
+  int64 id=1;
+  int64 uid=2;
+  string biz=3;
+  int64 bizId=4;
+  string content=5;
+  int64 rootId=6;
+  int64 pID=7;
+  Comment  parentComment=8;
+  repeated Comment childrenComment=9;
+  int64 cTime=10;
+  int64 uTime=11;
+}
+
+message GetCommentListReq{
+  string biz=1;
+  int64 bizId =2;
+  int64 minId=3;
+  int64 limit=4;
+}
+
+message GetCommentListResp{
+  repeated Comment comments=1;
+}
+
+message GetMoreRepliesReq{
+  int64 rid = 1;
+  int64 max_id = 2;
+  int64 limit = 3;
+}
+
+message GetMoreRepliesResp {
+  repeated Comment comments = 1;
+}
+
+message CreateCommentReq {
+  Comment comment = 1;
+}
+
+message CreateCommentResp {}
+
+message DeleteCommentReq {
+  int64 id = 1;
+}
+
+message DeleteCommentResp {}

@@ -7,7 +7,7 @@ services:
     command:
       - --default_authentication_plugin=mysql_native_password
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root  # 容器环境变量
     volumes:
       #      设置初始化脚本，将本地的./script/mysql/下的文件挂载到容器的/docker-entrypoint-initdb.d/目录下，该目录会在初始化时自动执行.sql脚本
       - ./script/mysql/:/docker-entrypoint-initdb.d/

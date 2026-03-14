@@ -3,13 +3,14 @@ package ijwt
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // accesstoken 加密key
@@ -38,7 +39,7 @@ func (h *RedisJwtHandler) ClearToken(ctx *gin.Context) error {
 	if !ok {
 		return errors.New("无法获取ssid")
 	}
-	//这里的ssid的生命周期与长token一致，长token失效时，必须重新登录，ssid也就会重新生成
+	//这里的ssid的生命周期与长token一致，长token失效时，必须重新登录，ssid也就会重新生成；因此记录ssid，就能让长token失效
 	return h.cmd.Set(ctx, h.key(userClaim.Ssid), "", time.Hour).Err()
 }
 

@@ -422,7 +422,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	//session中间件会设置cookie到浏览器
+	//session中间件会调用store的save函数，从而设置cookie到浏览器
 	server.Use(sessions.Sessions("ssid", store))
 
 	//builder := middleware.LoginMiddlewareBuilder{}

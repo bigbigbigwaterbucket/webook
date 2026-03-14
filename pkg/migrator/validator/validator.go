@@ -2,16 +2,17 @@ package validator
 
 import (
 	"context"
-	"github.com/ecodeclub/ekit/slice"
-	"github.com/ecodeclub/ekit/syncx/atomicx"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
-	"gorm.io/gorm"
 	"learning_go/webook/pkg/migrator"
 	"learning_go/webook/pkg/migrator/events"
 	"learning_go/webook/pkg/migrator/events/fixer"
 	"reflect"
 	"time"
+
+	"github.com/ecodeclub/ekit/slice"
+	"github.com/ecodeclub/ekit/syncx/atomicx"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
 )
 
 type Validator[t migrator.Entity] struct {
@@ -97,7 +98,7 @@ func (v *Validator[t]) Validate(ctx context.Context) error {
 // 比如说，我先 count 第一个月的数据，一旦有数据删除了，你还得一条条查出来
 
 // 由于存在base库中数据被删除，但是target库仍然存在的情况，需要反向检查删除多了的数据
-// 软删除其实不需要反向校验
+// 软删除其实不需要反向校验，即用不到这个函数
 func (v *Validator[t]) ValidateTargetToBase(ctx context.Context) {
 	offset := 0
 	//不能和另一个校验共享lastId和lastUtime

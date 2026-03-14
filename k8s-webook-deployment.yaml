@@ -1,9 +1,9 @@
-apiVersion: apps/intrv1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: webook
 spec:
-  replicas: 2
+  replicas: 2  # 同时启动两个pod副本
   # pod选择器，用来匹配哪些pod属于这个部署
   selector:
     matchLabels:

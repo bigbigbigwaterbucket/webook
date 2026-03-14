@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"encoding/gob"
-	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v5"
 	"learning_go/webook/internal/web/ijwt"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 type LoginJWTMiddlewareBuilder struct {
@@ -21,7 +22,7 @@ func (this *LoginJWTMiddlewareBuilder) AddHPath(path string) *LoginJWTMiddleware
 
 // 在除了登录和注册页面，验证登陆状态
 func (this *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
-	gob.Register(time.Now()) //注册编解码
+	gob.Register(time.Now()) //注册编解码，让any类型的结构体，实际对象是time类型的，能够encode
 	return func(context *gin.Context) {
 		for idx := range this.HPath {
 			if context.Request.URL.Path == this.HPath[idx] {
